@@ -1,4 +1,4 @@
-"""Tema visual (dark/tech, inspirado no NotebookLM) e pequenos componentes HTML.
+"""Tema visual (escuro, com a marca da Atitus) e pequenos componentes HTML.
 
 Todo texto vindo do usuário ou dos arquivos enviados passa por `html.escape` antes de entrar em HTML.
 """
