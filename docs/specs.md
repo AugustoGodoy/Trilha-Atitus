@@ -9,7 +9,7 @@ Documento de especificação do protótipo (Grupo 4), **versão 1.1**. Esta vers
 | Versão | Data | Mudanças |
 |---|---|---|
 | 1.0 | n/d | Pré-projeto do Grupo 4 e decisões das discussões posteriores. |
-| 1.1 | 16/11/2026 | Alinhamento ao protótipo: conta de usuário e login, cadernos persistentes por usuário, interface no estilo NotebookLM com a marca da Universidade Atitus, navegação livre entre as etapas, stack real (BM25 e SQLite), limite de jornadas por usuário, política de dados atualizada, decisões fechadas e status por requisito. Nome do produto definido: **Trilha** (Trilha Atitus). Correções: contagem de etapas (eram 5, não 4) e erros de texto. |
+| 1.1 | 16/11/2026 | Alinhamento ao protótipo: conta de usuário e login, cadernos persistentes por usuário, interface React com a marca da Universidade Atitus, navegação livre entre as etapas, stack real (BM25 e SQLite), limite de jornadas por usuário, política de dados atualizada, decisões fechadas e status por requisito. Nome do produto definido: **Trilha** (Trilha Atitus). Correções: contagem de etapas (eram 5, não 4) e erros de texto. |
 
 ## 1. Visão geral
 
@@ -48,7 +48,7 @@ Ficam como extensões futuras (seção 13).
 
 1. **Login obrigatório.** Ao abrir a aplicação, o usuário cria uma conta ou entra com e-mail e senha. A sessão sobrevive ao recarregamento da página e expira em 7 dias; o botão "Sair" encerra a sessão.
 2. **Início.** Mostra a saudação pelo nome ("Bom dia, Maria"), estatísticas do usuário (cadernos, quizzes feitos, nota média, perguntas ao tutor), a lista de cadernos salvos e o painel "Novo caderno".
-3. **Caderno.** Tela com três áreas, no estilo NotebookLM:
+3. **Caderno.** Tela com três áreas:
    - **Fontes** (barra lateral): arquivos do caderno, com número de páginas, e a lista "Meus cadernos".
    - **Centro:** título do caderno (renomeável) e a visão escolhida.
    - **Estúdio** (à direita): atalhos para Dúvidas, Resumo, Mapa mental e Quiz, mais o progresso (perguntas restantes, última nota, melhor nota e tentativas) e o custo estimado do caderno.
@@ -141,7 +141,7 @@ Limites de segurança de conta, fixados no código (`estudo_guiado/banco.py` e `
 | LLM de geração | API compatível com OpenAI (cliente próprio, sem dependências extras); padrão `gpt-4o-mini` | Modelo e preços em `config.toml`; testes comparativos de modelos em português ainda não foram feitos |
 | Cache de conteúdo gerado | SQLite (`data/cache.sqlite`) e imagens em disco, indexados por hash | Igual ao previsto |
 | Banco da aplicação | SQLite (`data/app.sqlite`) | Novo: usuários, sessões, cadernos, chat e resultados de quiz |
-| Interface | Streamlit, com tema escuro próprio (CSS) e a marca da Universidade Atitus | Layout em três áreas, no estilo NotebookLM |
+| Interface | React (Vite + TypeScript) + API FastAPI; tema escuro próprio (CSS) e a marca da Universidade Atitus | Layout em três áreas (Fontes, conversa, Estúdio) |
 | Avaliação | Não implementada | Previsto: RAGAs e scripts próprios |
 | Versionamento e documentação | GitHub | Igual ao previsto |
 
@@ -187,9 +187,9 @@ Mapa mental (JSON):
 
 | Caminho | Conteúdo |
 |---|---|
-| `app.py` | Ponto de entrada: autenticação, barra lateral e roteamento entre telas |
+| `backend/api/` | API FastAPI (`/v1`): autenticação Bearer, cadernos e Estúdio |
 | `estudo_guiado/` | Regras de negócio: `extracao`, `chunking`, `retrieval`, `llm`, `geracao`, `cache`, `jornada`, `banco`, `seguranca`, `config` |
-| `interface/` | Telas Streamlit: `estilo`, `login`, `home`, `caderno`, `sessao` |
+| `frontend/` | SPA React (Vite + TypeScript): login, home, caderno e tema visual |
 | `assets/` | Logo e ícone da Universidade Atitus |
 | `config.toml` | Limites, modelo, recuperação, cache e caminho dos bancos |
 | `tests/` | Testes automatizados (pytest) |
@@ -351,7 +351,7 @@ A versão 1.0 previa processar os arquivos sem armazenamento permanente de dados
 | 1 a 2 | Preparação dos dados e do conjunto de avaliação |
 | 2 a 3 | Extração, divisão em trechos, embeddings e indexação |
 | 3 a 5 | Geração de resumo, mapa mental e quiz; cache; chat limitado |
-| 4 a 6 | Interface (Streamlit) e integração das etapas |
+| 4 a 6 | Interface React + API FastAPI e integração das etapas |
 | 6 a 7 | Avaliação de qualidade e de custo; ajustes |
 | 7 a 8 | Documentação, preparação e apresentação |
 
