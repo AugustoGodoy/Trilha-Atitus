@@ -1,6 +1,6 @@
-# Estudo Guiado
+# Trilha Atitus
 
-MVP da **Plataforma de Estudo Guiado com Tutor Inteligente** (spec do Grupo 4). O aluno envia PDF/PPTX e segue uma jornada curta: **resumo → mapa mental → quiz → dúvidas (3 perguntas)**, sempre com citação de arquivo e página/slide.
+**Trilha** é o MVP da **Plataforma de Estudo Guiado com Tutor Inteligente** (spec do Grupo 4). O aluno envia PDF/PPTX e segue uma jornada curta: **resumo → mapa mental → quiz → dúvidas (3 perguntas)**, sempre com citação de arquivo e página/slide.
 
 A especificação do projeto, alinhada ao que está implementado (com status por requisito), está em [`docs/specs.md`](docs/specs.md) (versão em PDF: `docs/specs.pdf`).
 

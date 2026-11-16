@@ -1,4 +1,4 @@
-"""Estudo Guiado · Atitus: ponto de entrada (autenticação, barra lateral e roteamento entre telas)."""
+"""Trilha · Atitus: ponto de entrada (autenticação, barra lateral e roteamento entre telas)."""
 import streamlit as st
 
 from estudo_guiado.banco import Banco
@@ -9,7 +9,7 @@ from interface.home import pagina_home
 from interface.login import tela_login
 from interface.sessao import Contexto, S, abrir_caderno, fechar_caderno, sair
 
-st.set_page_config(page_title="Estudo Guiado · Atitus", page_icon=str(estilo.ICONE), layout="wide",
+st.set_page_config(page_title="Trilha · Atitus", page_icon=str(estilo.ICONE), layout="wide",
                    initial_sidebar_state="expanded")
 
 LIMITE_CADERNOS_NA_BARRA = 15

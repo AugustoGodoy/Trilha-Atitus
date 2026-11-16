@@ -1,4 +1,4 @@
-# specs.md: Plataforma de Estudo Guiado com Tutor Inteligente
+# specs.md: Trilha Atitus, Plataforma de Estudo Guiado com Tutor Inteligente
 
 Documento de especificação do protótipo (Grupo 4), **versão 1.1**. Esta versão foi alinhada ao protótipo implementado neste repositório: onde a versão 1.0 descrevia uma intenção, esta descreve o que existe e marca o que ainda não foi feito. Valores marcados com *(a definir)* continuam dependendo de confirmação do grupo.
 
@@ -9,7 +9,7 @@ Documento de especificação do protótipo (Grupo 4), **versão 1.1**. Esta vers
 | Versão | Data | Mudanças |
 |---|---|---|
 | 1.0 | n/d | Pré-projeto do Grupo 4 e decisões das discussões posteriores. |
-| 1.1 | 16/11/2026 | Alinhamento ao protótipo: conta de usuário e login, cadernos persistentes por usuário, interface no estilo NotebookLM com a marca da Universidade Atitus, navegação livre entre as etapas, stack real (BM25 e SQLite), limite de jornadas por usuário, política de dados atualizada, decisões fechadas e status por requisito. Correções: contagem de etapas (eram 5, não 4) e erros de texto. |
+| 1.1 | 16/11/2026 | Alinhamento ao protótipo: conta de usuário e login, cadernos persistentes por usuário, interface no estilo NotebookLM com a marca da Universidade Atitus, navegação livre entre as etapas, stack real (BM25 e SQLite), limite de jornadas por usuário, política de dados atualizada, decisões fechadas e status por requisito. Nome do produto definido: **Trilha** (Trilha Atitus). Correções: contagem de etapas (eram 5, não 4) e erros de texto. |
 
 ## 1. Visão geral
 
