@@ -5,7 +5,7 @@ max_paginas_por_jornada = 40
 max_tamanho_arquivo_mb = 20
 perguntas_chat = 3
 perguntas_quiz = 5
-jornadas_por_dia = 20
+jornadas_por_dia = 20            # por usuário
 recusa_consome_pergunta = false   # pergunta sem base no material consome o limite?
 
 [chunking]
@@ -29,3 +29,6 @@ cambio_brl = 5.5
 [cache]
 caminho = "data/cache.sqlite"
 compartilhado = true              # cache por hash do arquivo, guarda só conteúdo gerado e trechos
+
+[banco]
+caminho = "data/app.sqlite"       # usuários, sessões, cadernos, chat e resultados de quiz

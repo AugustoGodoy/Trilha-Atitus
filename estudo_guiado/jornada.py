@@ -34,12 +34,16 @@ class Servico:
     def modo(self) -> str:
         return f"api:{self.cfg['llm']['modelo']}" if self.usar_api else "offline"
 
-    def validar(self, arquivos: list[tuple[str, bytes]]) -> int:
-        """Valida limites ANTES de qualquer processamento ou chamada ao LLM. Retorna total de páginas."""
+    def validar(self, arquivos: list[tuple[str, bytes]], jornadas_hoje: int | None = None) -> int:
+        """Valida limites ANTES de qualquer processamento ou chamada ao LLM. Retorna total de páginas.
+
+        `jornadas_hoje` é a contagem do usuário logado; sem ela, usa o contador global do cache.
+        """
         lim = self.cfg["limites"]
         if not arquivos:
             raise LimiteExcedido("Envie ao menos um arquivo PDF ou PPTX.")
-        if self.cache.jornadas_hoje() >= lim["jornadas_por_dia"]:
+        hoje = self.cache.jornadas_hoje() if jornadas_hoje is None else jornadas_hoje
+        if hoje >= lim["jornadas_por_dia"]:
             raise LimiteExcedido(f"Limite de {lim['jornadas_por_dia']} jornadas por dia atingido. Volte amanhã.")
         total = 0
         for nome, dados in arquivos:
@@ -60,15 +64,21 @@ class Servico:
         c, lim = self.cfg["chunking"], self.cfg["limites"]
         return f"v1|{self.modo}|{lim['perguntas_quiz']}|{c['tamanho_alvo_palavras']}|{c['sobreposicao_palavras']}"
 
-    def preparar(self, arquivos: list[tuple[str, bytes]]) -> Jornada:
-        self.validar(arquivos)
+    def preparar(self, arquivos: list[tuple[str, bytes]], jornadas_hoje: int | None = None) -> Jornada:
+        self.validar(arquivos, jornadas_hoje)
         h = hash_arquivos(arquivos, self._assinatura())
         self.cache.registrar_jornada(h)
-        cache = self.cache.obter(h)
-        if cache and self.cfg["cache"]["compartilhado"]:
-            trechos = [Trecho(**t) for t in cache["trechos"]]
-            return Jornada(h, cache["conteudo"], trechos, IndiceBM25(trechos), True, self.modo)
+        if self.cfg["cache"]["compartilhado"] and (j := self.abrir(h)):
+            return j
         return self._processar(h, arquivos)
+
+    def abrir(self, h: str) -> Jornada | None:
+        """Reabre uma jornada já processada a partir do cache, sem chamar o LLM."""
+        cache = self.cache.obter(h)
+        if not cache:
+            return None
+        trechos = [Trecho(**t) for t in cache["trechos"]]
+        return Jornada(h, cache["conteudo"], trechos, IndiceBM25(trechos), True, self.modo)
 
     def _processar(self, h: str, arquivos: list[tuple[str, bytes]]) -> Jornada:
         ch = self.cfg["chunking"]

@@ -2,6 +2,8 @@
 
 MVP da **Plataforma de Estudo Guiado com Tutor Inteligente** (spec do Grupo 4). O aluno envia PDF/PPTX e segue uma jornada curta: **resumo → mapa mental → quiz → dúvidas (3 perguntas)**, sempre com citação de arquivo e página/slide.
 
+A especificação do projeto, alinhada ao que está implementado (com status por requisito), está em [`docs/specs.md`](docs/specs.md) (versão em PDF: `docs/specs.pdf`).
+
 ## Executar
 
 ```bash
@@ -9,6 +11,15 @@ pip install -r requirements.txt
 streamlit run app.py          # http://localhost:8765
 pytest                        # testes
 ```
+
+## Interface, login e dados do usuário
+
+Interface escura inspirada no NotebookLM, com a marca da Universidade Atitus (`assets/`): **Fontes** à esquerda, conversa com o tutor no centro e **Estúdio** (Dúvidas, Resumo, Mapa mental, Quiz) à direita.
+
+* **Login obrigatório**: criação de conta e entrada com e-mail/senha. Senhas com scrypt + salt; sessão por token (só o hash fica no banco, validade de 7 dias, sobrevive ao recarregar a página); bloqueio temporário após 5 falhas seguidas.
+* **Personalizado por usuário**: saudação pelo nome, cadernos próprios, histórico de chat, notas de cada quiz e estatísticas. Cada usuário só enxerga os próprios cadernos. O limite de jornadas por dia é **por usuário**.
+* **Banco SQLite** em `data/app.sqlite` (`[banco]` em `config.toml`): `usuarios`, `sessoes`, `tentativas_login`, `cadernos`, `mensagens`, `resultados_quiz`. O conteúdo gerado continua no cache por hash (`data/cache.sqlite`), compartilhado entre usuários.
+* Código: `estudo_guiado/` (regras, banco, segurança) e `interface/` (telas Streamlit); `app.py` só faz autenticação e roteamento.
 
 Sem chave de API o app roda em **modo offline** (geração extrativa, custo zero), útil para demo e testes. Para usar um LLM barato via API compatível com OpenAI:
 
