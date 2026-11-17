@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import { instance } from '@viz-js/viz'
-import { api, ApiError, type Caderno, type Configuracao } from '../api/client'
+import { api, apiUrl, ApiError, type Caderno, type Configuracao } from '../api/client'
 import type { OutletCtx } from '../components/Layout'
 import { dataCurta, negritoHtml, primeiroNome } from '../lib/format'
 import { useAuth } from '../store/auth'
@@ -377,7 +377,7 @@ export function CadernoPage() {
             {noSel && porId[noSel] && <Citacao fonte={porId[noSel].fonte} />}
             {trecho && <pre style={{ whiteSpace: 'pre-wrap', color: 'var(--suave)', fontSize: '0.88rem' }}>{trecho.texto}</pre>}
             {trecho?.imagens?.map((src) => (
-              <img key={src} src={src} alt="" style={{ maxWidth: 260, borderRadius: 12, marginRight: 8 }} />
+              <img key={src} src={apiUrl(src)} alt="" style={{ maxWidth: 260, borderRadius: 12, marginRight: 8 }} />
             ))}
             <details className="expander">
               <summary>Editar mapa (adicionar/remover nós)</summary>

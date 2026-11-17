@@ -1,5 +1,13 @@
 const TOKEN_KEY = 'trilha_token'
 
+/** Base da API em produção (ex.: https://trilha-api.up.railway.app). Vazio = mesmo origin / proxy do Vite. */
+export const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || ''
+
+export function apiUrl(path: string): string {
+  if (path.startsWith('http://') || path.startsWith('https://')) return path
+  return `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`
+}
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY)
 }
@@ -41,24 +49,24 @@ type Envelope<T> = { data: T; meta?: Record<string, unknown> }
 
 export const api = {
   async get<T>(path: string): Promise<T> {
-    return (await parse<Envelope<T>>(await fetch(path, { headers: headers(false) }))).data
+    return (await parse<Envelope<T>>(await fetch(apiUrl(path), { headers: headers(false) }))).data
   },
   async post<T>(path: string, body?: unknown): Promise<T> {
-    return (await parse<Envelope<T>>(await fetch(path, {
+    return (await parse<Envelope<T>>(await fetch(apiUrl(path), {
       method: 'POST', headers: headers(), body: body === undefined ? undefined : JSON.stringify(body),
     }))).data
   },
   async patch<T>(path: string, body: unknown): Promise<T> {
-    return (await parse<Envelope<T>>(await fetch(path, {
+    return (await parse<Envelope<T>>(await fetch(apiUrl(path), {
       method: 'PATCH', headers: headers(), body: JSON.stringify(body),
     }))).data
   },
   async del(path: string): Promise<void> {
-    const res = await fetch(path, { method: 'DELETE', headers: headers(false) })
+    const res = await fetch(apiUrl(path), { method: 'DELETE', headers: headers(false) })
     if (!res.ok && res.status !== 204) await parse(res)
   },
   async postForm<T>(path: string, form: FormData): Promise<T> {
-    return (await parse<Envelope<T>>(await fetch(path, {
+    return (await parse<Envelope<T>>(await fetch(apiUrl(path), {
       method: 'POST', headers: headers(false), body: form,
     }))).data
   },

@@ -1,4 +1,6 @@
 """Ponto de entrada da API Trilha Atitus."""
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -11,9 +13,17 @@ app = FastAPI(
     version="2.0.0",
 )
 
+_origens = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8765",
+]
+# Em produção: CORS_ORIGINS=https://trilha-web.up.railway.app,https://outro.dominio
+_origens += [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8765"],
+    allow_origins=_origens or ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
