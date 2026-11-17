@@ -20,8 +20,8 @@ score_minimo = 0.4                # abaixo disso o assunto é considerado fora d
 provider = "auto"                 # auto | openai | offline
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
 # IDs mudam: se 404, o cliente tenta outros e lista /models na API
-modelo = "gemini-3.8-flash"
-modelo_fallback = "gemini-2.5-flash"
+modelo = "gemini-3.5-flash-lite"
+modelo_fallback = "gemini-3.8-flash"
 chave_env = "GEMINI_API_KEY"      # nome da variável de ambiente; a chave nunca vai para o usuário final
 temperatura = 0.2
 # preços estimados em USD por 1M de tokens (Flash) e câmbio para estimar R$

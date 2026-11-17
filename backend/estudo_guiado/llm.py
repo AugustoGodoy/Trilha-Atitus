@@ -22,6 +22,7 @@ class Resposta:
 
 # Ordem de tentativa se o principal/fallback do config falharem (IDs mudam com o tempo)
 MODELOS_RESERVA = (
+    "gemini-3.5-flash-lite",
     "gemini-3.8-flash",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
