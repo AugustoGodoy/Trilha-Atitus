@@ -298,7 +298,11 @@ def corrigir_quiz(quiz: dict, respostas: dict[int, str]) -> dict:
 # ---------------------------------------------------------------- chat
 
 def responder(pergunta: str, indice: IndiceBM25, llm: ClienteLLM | None, k: int, score_min: float) -> dict:
-    """Retorna {resposta, fontes, sem_base, tokens_in, tokens_out, provedor}."""
+    """Retorna {resposta, fontes, sem_base, tokens_in, tokens_out, provedor}.
+
+    Gemini só é chamado se o BM25 achar algum trecho. Sem match lexical → provedor=nenhum
+    (não gasta a API com 'oi' / assuntos fora do PDF).
+    """
     achados = indice.buscar(pergunta, k)
     base = {
         "resposta": MSG_FORA_DO_MATERIAL,
@@ -308,8 +312,23 @@ def responder(pergunta: str, indice: IndiceBM25, llm: ClienteLLM | None, k: int,
         "tokens_out": 0,
         "provedor": "nenhum",
     }
-    if not achados or achados[0][1] < score_min:
+    # Sem nenhum token em comum com o material → não chama Gemini
+    if not achados:
+        base["resposta"] = (
+            f"{MSG_FORA_DO_MATERIAL}\n\n"
+            "(Gemini não foi chamado: nenhum trecho do material combina com essa pergunta. "
+            "Use um termo que aparece no resumo/slides.)"
+        )
         return base
+
+    # score_min só filtra matches fracos demais; se houver score>0 acima do mínimo, segue
+    if achados[0][1] < score_min:
+        base["resposta"] = (
+            f"{MSG_FORA_DO_MATERIAL}\n\n"
+            f"(Gemini não foi chamado: relevância baixa no material, score={achados[0][1]:.2f} < {score_min}.)"
+        )
+        return base
+
     trechos = [t for t, _ in achados]
     fontes_recuperadas = [t.fonte() for t in trechos[:3]]
     if llm is None:
@@ -321,7 +340,6 @@ def responder(pergunta: str, indice: IndiceBM25, llm: ClienteLLM | None, k: int,
             "Formato: {\"resposta\":\"\",\"fontes\":[{\"arquivo\":\"\",\"pagina\":0}],\"sem_base\":false}\n\n"
             f"PERGUNTA: {pergunta}\n\nTRECHOS:\n{_contexto(trechos)}"))
     except ErroLLM as e:
-        # 503/quota/rede: offline, mas avisa o motivo na resposta
         off = _resposta_offline(pergunta, trechos) | {"tokens_in": 0, "tokens_out": 0, "provedor": "offline"}
         if not off["sem_base"]:
             off["resposta"] = (
@@ -336,7 +354,17 @@ def responder(pergunta: str, indice: IndiceBM25, llm: ClienteLLM | None, k: int,
         return off
 
     if r.dados.get("sem_base") is True:
-        return base | {"tokens_in": r.tokens_in, "tokens_out": r.tokens_out, "provedor": "gemini"}
+        return {
+            **base,
+            "tokens_in": r.tokens_in,
+            "tokens_out": r.tokens_out,
+            "provedor": "gemini",
+            "modelo": getattr(r, "modelo", "") or "",
+            "resposta": (
+                f"{MSG_FORA_DO_MATERIAL}\n\n"
+                "(Gemini foi chamado e concluiu que a resposta não está no material.)"
+            ),
+        }
     resposta = str(r.dados.get("resposta") or "").strip()
     if not resposta:
         return base | {"tokens_in": r.tokens_in, "tokens_out": r.tokens_out, "provedor": "gemini"}
@@ -357,7 +385,6 @@ def responder(pergunta: str, indice: IndiceBM25, llm: ClienteLLM | None, k: int,
         "provedor": "gemini",
         "modelo": getattr(r, "modelo", "") or "",
     }
-
 
 def _resposta_offline(pergunta: str, trechos: list[Trecho]) -> dict:
     q = set(tokens(pergunta))
