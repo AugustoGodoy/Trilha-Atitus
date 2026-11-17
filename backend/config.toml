@@ -3,7 +3,7 @@
 [limites]
 max_paginas_por_jornada = 40
 max_tamanho_arquivo_mb = 20
-perguntas_chat = 50
+perguntas_chat = 20
 perguntas_quiz = 5
 jornadas_por_dia = 20            # por usuário
 recusa_consome_pergunta = false   # pergunta sem base no material consome o limite?
