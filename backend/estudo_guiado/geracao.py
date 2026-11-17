@@ -290,10 +290,14 @@ def responder(pergunta: str, indice: IndiceBM25, llm: ClienteLLM | None, k: int,
     trechos = [t for t, _ in achados]
     if llm is None:
         return _resposta_offline(pergunta, trechos) | {"tokens_in": 0, "tokens_out": 0}
-    r = llm.json(SISTEMA_BASE, (
-        "Responda a pergunta usando só os trechos. Se não houver base, devolva sem_base=true. Cite as fontes usadas. "
-        "Formato: {\"resposta\":\"\",\"fontes\":[{\"arquivo\":\"\",\"pagina\":0}],\"sem_base\":false}\n\n"
-        f"PERGUNTA: {pergunta}\n\nTRECHOS:\n{_contexto(trechos)}"))
+    try:
+        r = llm.json(SISTEMA_BASE, (
+            "Responda a pergunta usando só os trechos. Se não houver base, devolva sem_base=true. Cite as fontes usadas. "
+            "Formato: {\"resposta\":\"\",\"fontes\":[{\"arquivo\":\"\",\"pagina\":0}],\"sem_base\":false}\n\n"
+            f"PERGUNTA: {pergunta}\n\nTRECHOS:\n{_contexto(trechos)}"))
+    except ErroLLM:
+        # 503/quota/rede: responde offline com trechos do material em vez de falhar a dúvida
+        return _resposta_offline(pergunta, trechos) | {"tokens_in": 0, "tokens_out": 0}
     validas = fontes_validas(trechos)
     fontes = [f for f in (_fonte_ok(x, validas) for x in r.dados.get("fontes", [])) if f]
     if r.dados.get("sem_base") or not fontes or not r.dados.get("resposta"):

@@ -2,6 +2,7 @@
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -34,9 +35,33 @@ class ClienteLLM:
         usd = tin / 1e6 * c["preco_entrada_por_milhao"] + tout / 1e6 * c["preco_saida_por_milhao"]
         return round(usd * c["cambio_brl"], 6)
 
+    def _modelos(self) -> list[str]:
+        principal = self.cfg["modelo"]
+        fallback = str(self.cfg.get("modelo_fallback") or "").strip()
+        out = [principal]
+        if fallback and fallback != principal:
+            out.append(fallback)
+        return out
+
     def json(self, sistema: str, usuario: str) -> Resposta:
+        ultimo: ErroLLM | None = None
+        for modelo in self._modelos():
+            for tentativa in range(3):
+                try:
+                    return self._chamar(modelo, sistema, usuario)
+                except ErroLLM as e:
+                    ultimo = e
+                    msg = str(e)
+                    # Alta demanda / rate limit → espera e tenta de novo
+                    if "HTTP 503" in msg or "HTTP 429" in msg or "UNAVAILABLE" in msg:
+                        time.sleep(1.2 * (2 ** tentativa))
+                        continue
+                    break  # erro definitivo neste modelo → tenta fallback
+        raise ultimo or ErroLLM("Falha ao chamar o modelo.")
+
+    def _chamar(self, modelo: str, sistema: str, usuario: str) -> Resposta:
         corpo = {
-            "model": self.cfg["modelo"],
+            "model": modelo,
             "temperature": self.cfg["temperatura"],
             "response_format": {"type": "json_object"},
             "messages": [{"role": "system", "content": sistema}, {"role": "user", "content": usuario}],
@@ -47,7 +72,7 @@ class ClienteLLM:
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.chave}"},
         )
         try:
-            with urllib.request.urlopen(req, timeout=120) as r:
+            with urllib.request.urlopen(req, timeout=90) as r:
                 dados = json.load(r)
         except urllib.error.HTTPError as e:
             corpo_erro = e.read().decode("utf-8", errors="replace")[:500]
