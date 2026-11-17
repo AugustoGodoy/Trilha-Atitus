@@ -34,8 +34,24 @@ def fontes_validas(trechos: list[Trecho]) -> set[tuple[str, int]]:
 
 
 def _fonte_ok(fonte, validas) -> dict | None:
-    if isinstance(fonte, dict) and (fonte.get("arquivo"), fonte.get("pagina")) in validas:
-        return {"arquivo": fonte["arquivo"], "pagina": fonte["pagina"]}
+    """Aceita arquivo/pagina (ou file/page) e pagina como int ou string."""
+    if not isinstance(fonte, dict):
+        return None
+    arq = fonte.get("arquivo") or fonte.get("file") or fonte.get("filename")
+    pag = fonte.get("pagina") if "pagina" in fonte else fonte.get("page")
+    try:
+        pag = int(pag)
+    except (TypeError, ValueError):
+        return None
+    if arq is None:
+        return None
+    arq = str(arq)
+    if (arq, pag) in validas:
+        return {"arquivo": arq, "pagina": pag}
+    # Match só pela página se o nome do arquivo vier ligeiramente diferente
+    por_pagina = [a for a, p in validas if p == pag]
+    if len(por_pagina) == 1:
+        return {"arquivo": por_pagina[0], "pagina": pag}
     return None
 
 
@@ -288,22 +304,40 @@ def responder(pergunta: str, indice: IndiceBM25, llm: ClienteLLM | None, k: int,
     if not achados or achados[0][1] < score_min:
         return base
     trechos = [t for t, _ in achados]
+    fontes_recuperadas = [t.fonte() for t in trechos[:3]]
     if llm is None:
         return _resposta_offline(pergunta, trechos) | {"tokens_in": 0, "tokens_out": 0}
     try:
         r = llm.json(SISTEMA_BASE, (
-            "Responda a pergunta usando só os trechos. Se não houver base, devolva sem_base=true. Cite as fontes usadas. "
+            "Responda a pergunta usando só os trechos. Se não houver base, devolva sem_base=true. "
+            "Nas fontes use exatamente o arquivo e a pagina (número) dos trechos. "
             "Formato: {\"resposta\":\"\",\"fontes\":[{\"arquivo\":\"\",\"pagina\":0}],\"sem_base\":false}\n\n"
             f"PERGUNTA: {pergunta}\n\nTRECHOS:\n{_contexto(trechos)}"))
     except ErroLLM:
         # 503/quota/rede: responde offline com trechos do material em vez de falhar a dúvida
         return _resposta_offline(pergunta, trechos) | {"tokens_in": 0, "tokens_out": 0}
-    validas = fontes_validas(trechos)
-    fontes = [f for f in (_fonte_ok(x, validas) for x in r.dados.get("fontes", [])) if f]
-    if r.dados.get("sem_base") or not fontes or not r.dados.get("resposta"):
+
+    if r.dados.get("sem_base") is True:
         return base | {"tokens_in": r.tokens_in, "tokens_out": r.tokens_out}
-    return {"resposta": str(r.dados["resposta"]), "fontes": fontes, "sem_base": False,
-            "tokens_in": r.tokens_in, "tokens_out": r.tokens_out}
+    resposta = str(r.dados.get("resposta") or "").strip()
+    if not resposta:
+        return base | {"tokens_in": r.tokens_in, "tokens_out": r.tokens_out}
+
+    validas = fontes_validas(trechos)
+    brutas = r.dados.get("fontes") or []
+    if not isinstance(brutas, list):
+        brutas = []
+    fontes = [f for f in (_fonte_ok(x, validas) for x in brutas) if f]
+    # Gemini às vezes manda pagina como string / chaves em inglês — não descarte a resposta
+    if not fontes:
+        fontes = fontes_recuperadas
+    return {
+        "resposta": resposta,
+        "fontes": fontes,
+        "sem_base": False,
+        "tokens_in": r.tokens_in,
+        "tokens_out": r.tokens_out,
+    }
 
 
 def _resposta_offline(pergunta: str, trechos: list[Trecho]) -> dict:
@@ -314,10 +348,16 @@ def _resposta_offline(pergunta: str, trechos: list[Trecho]) -> dict:
             s = len(q & set(tokens(f)))
             if s:
                 candidatas.append((s, f, t))
-    if not candidatas:
-        return {"resposta": MSG_FORA_DO_MATERIAL, "fontes": [], "sem_base": True}
-    candidatas.sort(key=lambda x: -x[0])
-    top = candidatas[:3]
-    resposta = " ".join(f"{_encurtar(f, 300)} ({t.arquivo}, p.{t.pagina})" for _, f, t in top)
-    fontes = list({(t.arquivo, t.pagina): t.fonte() for _, _, t in top}.values())
-    return {"resposta": resposta, "fontes": fontes, "sem_base": False}
+    if candidatas:
+        candidatas.sort(key=lambda x: -x[0])
+        top = candidatas[:3]
+        resposta = " ".join(f"{_encurtar(f, 300)} ({t.arquivo}, p.{t.pagina})" for _, f, t in top)
+        fontes = list({(t.arquivo, t.pagina): t.fonte() for _, _, t in top}.values())
+        return {"resposta": resposta, "fontes": fontes, "sem_base": False}
+    # Sem overlap de frase: ainda assim devolve os trechos recuperados pelo BM25
+    if trechos:
+        resposta = " ".join(
+            f"{_encurtar(t.texto, 280)} ({t.arquivo}, p.{t.pagina})" for t in trechos[:2]
+        )
+        return {"resposta": resposta, "fontes": [t.fonte() for t in trechos[:2]], "sem_base": False}
+    return {"resposta": MSG_FORA_DO_MATERIAL, "fontes": [], "sem_base": True}

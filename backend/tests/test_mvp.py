@@ -86,6 +86,32 @@ def test_chat_recusa_fora_do_material(svc):
     assert svc.perguntar(j, "Quem ganhou a copa de 1994?")["sem_base"]
 
 
+def test_responder_mantem_resposta_com_fonte_string(monkeypatch):
+    """Gemini costuma devolver pagina como string — não pode virar 'fora do material'."""
+    from estudo_guiado.chunking import Trecho
+    from estudo_guiado.llm import Resposta
+    from estudo_guiado.retrieval import IndiceBM25
+
+    trechos = [
+        Trecho(0, "aula.pdf", 1, "A fotossíntese ocorre nos cloroplastos com clorofila absorvendo luz."),
+        Trecho(1, "aula.pdf", 2, "A respiração celular acontece nas mitocôndrias e produz ATP."),
+    ]
+    indice = IndiceBM25(trechos)
+
+    class Fake:
+        def json(self, *_a, **_k):
+            return Resposta({
+                "resposta": "A fotossíntese converte luz solar em energia química.",
+                "fontes": [{"arquivo": "aula.pdf", "pagina": "1"}],
+                "sem_base": False,
+            }, 10, 20)
+
+    r = geracao.responder("O que é fotossíntese?", indice, Fake(), 4, 0.4)
+    assert not r["sem_base"]
+    assert "fotossíntese" in r["resposta"].lower()
+    assert r["fontes"] and r["fontes"][0]["pagina"] == 1
+
+
 def test_preparar_nunca_chama_llm(svc, monkeypatch):
     """Trilha (resumo/mapa/quiz) não deve usar Gemini — só o chat."""
     chamadas = {"n": 0}
