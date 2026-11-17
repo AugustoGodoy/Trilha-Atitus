@@ -196,6 +196,8 @@ def perguntar(caderno_id: int, body: PerguntaIn, usuario: dict = Depends(usuario
         "fontes": r["fontes"],
         "sem_base": r["sem_base"],
         "restantes": restantes,
+        "provedor": r.get("provedor", "desconhecido"),
+        "modelo": r.get("modelo") or None,
     })
 
 

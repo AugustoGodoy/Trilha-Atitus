@@ -7,7 +7,14 @@ import { dataCurta, negritoHtml, primeiroNome } from '../lib/format'
 import { useAuth } from '../store/auth'
 
 type View = 'chat' | 'resumo' | 'mapa' | 'quiz'
-type Mensagem = { pergunta: string; resposta: string; fontes: { arquivo: string; pagina: number }[]; sem_base?: boolean }
+type Mensagem = {
+  pergunta: string
+  resposta: string
+  fontes: { arquivo: string; pagina: number }[]
+  sem_base?: boolean
+  provedor?: string
+  modelo?: string | null
+}
 type Mapa = { nos: { id: string; rotulo: string; fonte: { arquivo: string; pagina: number } }[]; relacoes: { de: string; para: string; tipo: string }[] }
 
 /** Ordem sugerida da trilha (do simples ao profundo). */
@@ -190,7 +197,14 @@ export function CadernoPage() {
     setErro('')
     try {
       const r = await api.post<Mensagem & { restantes: number }>(`/v1/cadernos/${cadernoId}/mensagens`, { pergunta: q })
-      setMensagens((m) => [...m, { pergunta: r.pergunta, resposta: r.resposta, fontes: r.fontes, sem_base: r.sem_base }])
+      setMensagens((m) => [...m, {
+        pergunta: r.pergunta,
+        resposta: r.resposta,
+        fontes: r.fontes,
+        sem_base: r.sem_base,
+        provedor: r.provedor,
+        modelo: r.modelo,
+      }])
       setCaderno((c) => c ? { ...c, restantes: r.restantes } : c)
       setPergunta('')
       setSugestoes([])
@@ -280,8 +294,17 @@ export function CadernoPage() {
               <div key={i}>
                 <div className="msg-user">{m.pergunta}</div>
                 <div className="msg-bot">
-                  <div>{m.resposta}</div>
+                  <div style={{ whiteSpace: 'pre-wrap' }}>{m.resposta}</div>
                   <div>{m.fontes?.map((f, j) => <Citacao key={j} fonte={f} />)}</div>
+                  {m.provedor && (
+                    <div className="sub" style={{ fontSize: '0.75rem', marginTop: '0.35rem' }}>
+                      {m.provedor === 'gemini'
+                        ? `Via Gemini${m.modelo ? ` (${m.modelo})` : ''}`
+                        : m.provedor === 'offline'
+                          ? 'Via offline (Gemini não respondeu)'
+                          : null}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

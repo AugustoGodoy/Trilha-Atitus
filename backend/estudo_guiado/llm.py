@@ -17,18 +17,19 @@ class Resposta:
     dados: dict
     tokens_in: int
     tokens_out: int
+    modelo: str = ""
 
 
 class ClienteLLM:
     def __init__(self, cfg: dict):
         self.cfg = cfg
-        self.chave = os.environ.get(cfg["chave_env"], "")
+        self.chave = os.environ.get(cfg["chave_env"], "").strip()
 
     @staticmethod
     def disponivel(cfg: dict) -> bool:
         if cfg["provider"] == "offline":
             return False
-        return bool(os.environ.get(cfg["chave_env"]))
+        return bool(os.environ.get(cfg["chave_env"], "").strip())
 
     def custo_brl(self, tin: int, tout: int) -> float:
         c = self.cfg
@@ -46,33 +47,41 @@ class ClienteLLM:
     def json(self, sistema: str, usuario: str) -> Resposta:
         ultimo: ErroLLM | None = None
         for modelo in self._modelos():
-            for tentativa in range(3):
-                try:
-                    return self._chamar(modelo, sistema, usuario)
-                except ErroLLM as e:
-                    ultimo = e
-                    msg = str(e)
-                    # Alta demanda / rate limit → espera e tenta de novo
-                    if "HTTP 503" in msg or "HTTP 429" in msg or "UNAVAILABLE" in msg:
-                        time.sleep(1.2 * (2 ** tentativa))
-                        continue
-                    break  # erro definitivo neste modelo → tenta fallback
+            for com_format in (True, False):
+                for tentativa in range(2):
+                    try:
+                        return self._chamar(modelo, sistema, usuario, com_json_format=com_format)
+                    except ErroLLM as e:
+                        ultimo = e
+                        msg = str(e)
+                        if "HTTP 503" in msg or "HTTP 429" in msg or "UNAVAILABLE" in msg:
+                            time.sleep(0.8 * (2 ** tentativa))
+                            continue
+                        if "HTTP 404" in msg or "NOT_FOUND" in msg:
+                            break  # modelo inválido → próximo da lista
+                        if com_format and ("HTTP 400" in msg or "response_format" in msg.lower()):
+                            break  # tenta de novo sem response_format
+                        break
+                else:
+                    continue
+                break
         raise ultimo or ErroLLM("Falha ao chamar o modelo.")
 
-    def _chamar(self, modelo: str, sistema: str, usuario: str) -> Resposta:
-        corpo = {
+    def _chamar(self, modelo: str, sistema: str, usuario: str, *, com_json_format: bool) -> Resposta:
+        corpo: dict = {
             "model": modelo,
             "temperature": self.cfg["temperatura"],
-            "response_format": {"type": "json_object"},
             "messages": [{"role": "system", "content": sistema}, {"role": "user", "content": usuario}],
         }
+        if com_json_format:
+            corpo["response_format"] = {"type": "json_object"}
         req = urllib.request.Request(
             self.cfg["base_url"].rstrip("/") + "/chat/completions",
             data=json.dumps(corpo).encode(),
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.chave}"},
         )
         try:
-            with urllib.request.urlopen(req, timeout=90) as r:
+            with urllib.request.urlopen(req, timeout=60) as r:
                 dados = json.load(r)
         except urllib.error.HTTPError as e:
             corpo_erro = e.read().decode("utf-8", errors="replace")[:500]
@@ -86,4 +95,4 @@ class ClienteLLM:
         except json.JSONDecodeError as e:
             raise ErroLLM("O modelo devolveu um JSON inválido.") from e
         uso = dados.get("usage", {})
-        return Resposta(obj, uso.get("prompt_tokens", 0), uso.get("completion_tokens", 0))
+        return Resposta(obj, uso.get("prompt_tokens", 0), uso.get("completion_tokens", 0), modelo=modelo)
