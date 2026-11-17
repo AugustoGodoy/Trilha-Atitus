@@ -1,6 +1,6 @@
 # specs.md: Trilha Atitus, Plataforma de Estudo Guiado com Tutor Inteligente
 
-Documento de especificação do protótipo (Grupo 4), **versão 1.1**. Esta versão foi alinhada ao protótipo implementado neste repositório: onde a versão 1.0 descrevia uma intenção, esta descreve o que existe e marca o que ainda não foi feito. Valores marcados com *(a definir)* continuam dependendo de confirmação do grupo.
+Documento de especificação do protótipo (Grupo 4), **versão 1.2**. Esta versão foi alinhada ao protótipo implementado neste repositório: onde a versão 1.0 descrevia uma intenção, esta descreve o que existe e marca o que ainda não foi feito. Valores marcados com *(a definir)* continuam dependendo de confirmação do grupo.
 
 **Legenda de status:** **Implementado** (existe no protótipo e foi verificado), **Parcial** (existe com ressalvas descritas) e **Pendente** (previsto, ainda não implementado).
 
@@ -10,6 +10,7 @@ Documento de especificação do protótipo (Grupo 4), **versão 1.1**. Esta vers
 |---|---|---|
 | 1.0 | n/d | Pré-projeto do Grupo 4 e decisões das discussões posteriores. |
 | 1.1 | 16/11/2026 | Alinhamento ao protótipo: conta de usuário e login, cadernos persistentes por usuário, interface React com a marca da Universidade Atitus, navegação livre entre as etapas, stack real (BM25 e SQLite), limite de jornadas por usuário, política de dados atualizada, decisões fechadas e status por requisito. Nome do produto definido: **Trilha** (Trilha Atitus). Correções: contagem de etapas (eram 5, não 4) e erros de texto. |
+| 1.2 | 17/11/2026 | Trilha explícita na UI: geração completa no envio, abertura no Resumo, stepper e “Próxima etapa”; diferencial vs NotebookLM reforçado; critério de aceite 1b. |
 
 ## 1. Visão geral
 
@@ -23,10 +24,10 @@ Alunos que precisam estudar um conteúdo específico em pouco tempo (por exemplo
 
 ### 1.3 Diferencial
 
-1. Jornada guiada em etapas, do simples ao profundo (resumo, mapa mental, quiz, dúvidas), em vez de um chat aberto.
+1. **Jornada guiada (diferença principal frente ao NotebookLM):** em vez de um chat aberto em que o aluno precisa saber o que perguntar, a Trilha **gera de uma vez** resumo, mapa mental e quiz no envio do material e **conduz** o estudo na ordem sugerida (Resumo → Mapa mental → Quiz → Dúvidas), com stepper visível e botão “Próxima etapa”. A navegação continua livre (o aluno pode pular etapas).
 2. Fundamentação e recusa: toda saída cita a fonte, e o sistema informa quando o assunto não está no material, em vez de inventar.
 3. Custo controlado por design: limites claros de envio e de interação, geração única com cache e uso de modelos baratos, de modo que o produto seja viável para um usuário final leigo sem que ele precise de chave de API própria. Há também um modo offline, de custo zero.
-4. Qualidade medida: avaliação quantitativa da recuperação, da fidelidade das respostas, da correção dos gabaritos e do custo por jornada. **Status: Pendente** (seção 9).
+4. Qualidade medida: avaliação quantitativa da recuperação, da fidelidade das respostas, da correção dos gabaritos e do custo por jornada. **Status: Pendente** (seção 9). O ganho de aprendizagem frente ao estudo só com o PDF ainda **não foi medido** pelo grupo (estudo desejável, não comprovado neste MVP).
 5. Experiência personalizada: conta própria, saudação pelo nome, cadernos salvos, histórico de dúvidas, notas e estatísticas de uso.
 
 ### 1.4 Fora do escopo desta versão
@@ -51,13 +52,13 @@ Ficam como extensões futuras (seção 13).
 3. **Caderno.** Tela com três áreas:
    - **Fontes** (barra lateral): arquivos do caderno, com número de páginas, e a lista "Meus cadernos".
    - **Centro:** título do caderno (renomeável) e a visão escolhida.
-   - **Estúdio** (à direita): atalhos para Dúvidas, Resumo, Mapa mental e Quiz, mais o progresso (perguntas restantes, última nota, melhor nota e tentativas) e o custo estimado do caderno.
+   - **Estúdio** (à direita): atalhos na ordem sugerida (Resumo, Mapa mental, Quiz, Dúvidas), mais o progresso (perguntas restantes, última nota, melhor nota e tentativas) e o custo estimado do caderno. No centro, um stepper “Sua trilha” reforça a ordem recomendada.
 4. Cada usuário só enxerga os próprios cadernos. É possível renomear e excluir um caderno.
 5. Um aviso permanente informa que a ferramenta é de apoio ao estudo e não substitui o professor.
 
 ### 3.2 Etapas da jornada
 
-A jornada tem **5 etapas** (0 a 4). Depois do envio, as quatro visões ficam disponíveis no Estúdio e o aluno escolhe a ordem; a ordem recomendada é a do fluxo abaixo. *Decisão da versão 1.1: a navegação livre substitui o avanço sequencial obrigatório da versão 1.0.*
+A jornada tem **5 etapas** (0 a 4). **No envio (etapa 0), o sistema gera de uma única vez o resumo, o mapa mental e o quiz** e os guarda em cache; as quatro visões ficam prontas. A interface abre no **Resumo**, mostra o banner “Sua trilha já está pronta” e o stepper da ordem sugerida. O aluno pode seguir com “Próxima etapa” ou pular livremente. *Decisão da versão 1.1: a navegação livre substitui o avanço sequencial obrigatório da versão 1.0; a versão alinhada ao React torna a trilha gerada e a ordem sugerida explícitas na UI.*
 
 #### Etapa 0: Envio do material
 
@@ -65,6 +66,7 @@ A jornada tem **5 etapas** (0 a 4). Depois do envio, as quatro visões ficam dis
 - O sistema valida os limites (seção 4) antes de processar.
 - O sistema extrai o texto por página/slide, limpa e divide em trechos de cerca de 450 palavras (faixa de 500 a 800 tokens), com sobreposição de 60 palavras, sem cruzar fronteiras de página. Cada trecho guarda arquivo e página/slide, e todos são indexados em um índice BM25 local.
 - Imagens e diagramas (até 3 por página) são extraídos por código, sem IA, e associados à página/slide de origem.
+- Em seguida, na mesma operação, o sistema gera resumo, mapa e quiz (uma chamada de geração por artefato, com registro de custo) e registra o caderno do usuário.
 
 #### Etapa 1: Resumo do conteúdo
 
@@ -97,7 +99,7 @@ A jornada tem **5 etapas** (0 a 4). Depois do envio, as quatro visões ficam dis
 
 #### Resumo do fluxo
 
-Login → Envio → Resumo / Mapa mental / Quiz / Dúvidas (ordem livre) → Fim (ao esgotar as 3 perguntas).
+Login → Envio (gera resumo + mapa + quiz de uma vez) → abre no Resumo → Mapa → Quiz → Dúvidas (ordem sugerida; livre para pular) → Fim (ao esgotar as 3 perguntas).
 
 ## 4. Limites de uso (controle de tokens)
 
@@ -375,6 +377,7 @@ A versão 1.0 previa processar os arquivos sem armazenamento permanente de dados
 | # | Critério | Status | Como foi verificado |
 |---|---|---|---|
 | 1 | Um aluno leigo cria conta, envia um PDF ou PPTX dentro do limite e conclui as etapas sem configurar nada. | Implementado | Conta criada e caderno percorrido na interface; geração testada com PDF e PPTX nos testes automatizados. O envio pelo seletor de arquivos não foi exercitado no navegador de teste |
+| 1b | Ao criar o caderno, a trilha (resumo, mapa e quiz) já está gerada; a UI inicia no Resumo, exibe stepper da ordem sugerida e permite “Próxima etapa” com navegação livre. | Implementado | Comportamento da interface React (Caderno): view inicial `resumo`, banner “Sua trilha já está pronta”, stepper e CTAs |
 | 2 | Todo conteúdo gerado exibe a fonte (arquivo e página/slide). | Implementado | Inspeção da interface; os termos-chave não exibem fonte individual |
 | 3 | O chat bloqueia a 4ª pergunta e mostra o contador corretamente. | Implementado | Contador verificado na interface; o bloqueio é feito por código (entrada desabilitada com 0 restantes) |
 | 4 | Um envio acima do limite é recusado com mensagem clara, antes de qualquer chamada ao LLM. | Implementado | Teste com LLM simulado: excesso de páginas, de MB, formato inválido, PDF corrompido e limite diário |
@@ -393,7 +396,7 @@ Observação: o caminho com LLM real não foi exercitado (não havia chave de AP
 - [x] **Pergunta recusada** por falta de base **não** consome o limite de 3 do chat.
 - [x] **Cache compartilhado entre usuários**, indexado por hash, guardando o conteúdo gerado e os trechos do texto.
 - [x] **Conta de usuário obrigatória**, com cadernos e histórico por usuário.
-- [x] **Navegação livre** entre Resumo, Mapa mental, Quiz e Dúvidas depois do envio.
+- [x] **Navegação livre** entre Resumo, Mapa mental, Quiz e Dúvidas depois do envio, com **trilha explícita** (geração completa no envio, abertura no Resumo, stepper e “Próxima etapa”).
 - [x] **Recuperação inicial com BM25**, com troca por embeddings prevista.
 
 ### 15.2 Decisões em aberto

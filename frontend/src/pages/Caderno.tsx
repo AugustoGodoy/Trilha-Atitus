@@ -10,12 +10,15 @@ type View = 'chat' | 'resumo' | 'mapa' | 'quiz'
 type Mensagem = { pergunta: string; resposta: string; fontes: { arquivo: string; pagina: number }[]; sem_base?: boolean }
 type Mapa = { nos: { id: string; rotulo: string; fonte: { arquivo: string; pagina: number } }[]; relacoes: { de: string; para: string; tipo: string }[] }
 
+/** Ordem sugerida da trilha (do simples ao profundo). */
 const VISOES: { key: View; label: string }[] = [
-  { key: 'chat', label: 'Dúvidas' },
   { key: 'resumo', label: 'Resumo' },
   { key: 'mapa', label: 'Mapa mental' },
   { key: 'quiz', label: 'Quiz' },
+  { key: 'chat', label: 'Dúvidas' },
 ]
+
+const ORDEM_TRILHA: View[] = VISOES.map((v) => v.key)
 
 function Citacao({ fonte }: { fonte: { arquivo: string; pagina: number } }) {
   return <span className="cit">📄 {fonte.arquivo} · <b>p. {fonte.pagina}</b></span>
@@ -29,12 +32,17 @@ export function CadernoPage() {
   const nav = useNavigate()
   const location = useLocation()
   const [caderno, setCaderno] = useState<Caderno | null>(null)
-  const [view, setView] = useState<View>('chat')
+  const estadoNav = location.state as { reaproveitado?: boolean; perguntaInicial?: string; trilhaPronta?: boolean } | null
+  const iniciaNoChat = Boolean(estadoNav?.perguntaInicial?.trim())
+  const [view, setView] = useState<View>(iniciaNoChat ? 'chat' : 'resumo')
   const [cfg, setCfg] = useState<Configuracao | null>(null)
   const [erro, setErro] = useState('')
-  const estadoNav = location.state as { reaproveitado?: boolean; perguntaInicial?: string } | null
   const [reaproveitado, setReaproveitado] = useState(Boolean(estadoNav?.reaproveitado))
+  const [bannerTrilha, setBannerTrilha] = useState(
+    Boolean(estadoNav?.trilhaPronta) || (Boolean(estadoNav?.reaproveitado) && !estadoNav?.perguntaInicial),
+  )
   const [perguntaPendente, setPerguntaPendente] = useState(estadoNav?.perguntaInicial?.trim() || '')
+  const [visitados, setVisitados] = useState<Set<View>>(() => new Set(iniciaNoChat ? ['chat'] : ['resumo']))
 
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [sugestoes, setSugestoes] = useState<string[]>([])
@@ -71,18 +79,47 @@ export function CadernoPage() {
     if (!cadernoId) return
     setErro('')
     setCorrigido(null)
-    setView('chat')
+    const st = location.state as { perguntaInicial?: string; trilhaPronta?: boolean; reaproveitado?: boolean } | null
+    const comPergunta = Boolean(st?.perguntaInicial)
+    setView(comPergunta ? 'chat' : 'resumo')
+    setVisitados(new Set(comPergunta ? ['chat'] : ['resumo']))
+    setBannerTrilha(Boolean(st?.trilhaPronta) || (Boolean(st?.reaproveitado) && !comPergunta))
+    setReaproveitado(Boolean(st?.reaproveitado))
     setProntoChat(false)
     api.get<Caderno>(`/v1/cadernos/${cadernoId}`).then((c) => {
       setCaderno(c)
       setFontesSidebar(c.fontes)
     }).catch((e) => setErro(e.message))
     api.get<Mensagem[]>(`/v1/cadernos/${cadernoId}/mensagens`)
-      .then((m) => { setMensagens(m); setProntoChat(true) })
+      .then((m) => {
+        setMensagens(m)
+        setProntoChat(true)
+        if (m.length > 0) setVisitados((v) => new Set(v).add('chat'))
+      })
       .catch(() => { setMensagens([]); setProntoChat(true) })
+    api.get<{ quiz: typeof quiz; resultados: { nota: number }[] }>(`/v1/cadernos/${cadernoId}/quiz`)
+      .then((d) => {
+        setResultados(d.resultados)
+        if (d.resultados.length > 0) setVisitados((v) => new Set(v).add('quiz'))
+      })
+      .catch(() => null)
     api.get<{ itens: { etapa: string; custo_brl: number }[]; total_brl: number }>(`/v1/cadernos/${cadernoId}/custos`)
       .then(setCustos).catch(() => setCustos(null))
-  }, [cadernoId, setFontesSidebar])
+  }, [cadernoId, setFontesSidebar, location.state])
+
+  function irPara(proxima: View) {
+    setView(proxima)
+    setVisitados((v) => new Set(v).add(proxima))
+  }
+
+  function proximaEtapa() {
+    const i = ORDEM_TRILHA.indexOf(view)
+    if (i >= 0 && i < ORDEM_TRILHA.length - 1) irPara(ORDEM_TRILHA[i + 1])
+  }
+
+  useEffect(() => {
+    setVisitados((v) => new Set(v).add(view))
+  }, [view])
 
   useEffect(() => {
     if (!cadernoId || view !== 'chat' || mensagens.length > 0 || restantes <= 0) {
@@ -140,6 +177,7 @@ export function CadernoPage() {
       const r = await api.post<Mensagem & { restantes: number }>(`/v1/cadernos/${cadernoId}/mensagens`, { pergunta: q })
       setMensagens((m) => [...m, { pergunta: r.pergunta, resposta: r.resposta, fontes: r.fontes, sem_base: r.sem_base }])
       setCaderno((c) => c ? { ...c, restantes: r.restantes } : c)
+      setVisitados((v) => new Set(v).add('chat'))
       setPergunta('')
       setSugestoes([])
     } catch (e) {
@@ -202,6 +240,7 @@ export function CadernoPage() {
     const r = await api.post<NonNullable<typeof corrigido>>(`/v1/cadernos/${cadernoId}/quiz/correcoes`, { respostas })
     setCorrigido(r)
     setResultados((prev) => [{ nota: r.nota }, ...prev])
+    setVisitados((v) => new Set(v).add('quiz'))
   }
 
   if (erro && !caderno) return <div className="erro">{erro}</div>
@@ -222,18 +261,52 @@ export function CadernoPage() {
           </div>
           <button className="btn" style={{ width: 'auto', height: 'fit-content' }} onClick={renomear}>✎</button>
         </div>
-        {reaproveitado && (
-          <div className="ok" onAnimationEnd={() => setReaproveitado(false)}>
-            Material já processado antes: conteúdo reaproveitado do cache, sem novas chamadas ao modelo.
+        {bannerTrilha && (
+          <div className="ok" style={{ marginTop: '1rem' }}>
+            <div>
+              Sua trilha já está pronta: preparei <b>resumo</b>, <b>mapa mental</b> e <b>quiz</b> com base no seu material.
+              Siga a ordem sugerida (Resumo → Mapa → Quiz → Dúvidas) ou escolha outra etapa no Estúdio.
+            </div>
+            <button className="btn" type="button" style={{ width: 'auto', marginTop: '0.6rem' }}
+              onClick={() => setBannerTrilha(false)}>Entendi</button>
           </div>
         )}
+        {reaproveitado && (
+          <div className="ok">
+            Material já processado antes: conteúdo reaproveitado do cache, sem novas chamadas ao modelo.
+            <button className="btn" type="button" style={{ width: 'auto', marginLeft: '0.5rem' }}
+              onClick={() => setReaproveitado(false)}>Ok</button>
+          </div>
+        )}
+
+        <div className="trilha-stepper" aria-label="Sua trilha de estudo">
+          <div className="rotulo-secao" style={{ marginTop: 0 }}>Sua trilha</div>
+          <div className="trilha-passos">
+            {VISOES.map((v, i) => (
+              <button
+                key={v.key}
+                type="button"
+                className={`trilha-passo ${view === v.key ? 'ativo' : ''} ${visitados.has(v.key) ? 'visitado' : ''}`}
+                onClick={() => irPara(v.key)}
+              >
+                <span className="trilha-num">{visitados.has(v.key) && view !== v.key ? '✓' : i + 1}</span>
+                <span className="trilha-label">{v.label}</span>
+              </button>
+            ))}
+          </div>
+          <p className="sub" style={{ fontSize: '0.8rem', margin: '0.35rem 0 0' }}>
+            Ordem sugerida · você pode pular etapas
+          </p>
+        </div>
+
         {erro && <div className="erro">{erro}</div>}
 
         {view === 'chat' && (
           <>
             <div className="guia" style={{ marginTop: '1rem' }}>
-              Olá, <b>{primeiroNome(usuario?.nome || '')}</b>! Li <b>{fontesCount}</b> fonte(s) e preparei o resumo, o mapa mental e o quiz
-              no <b>Estúdio</b>. Pergunte o que ficou confuso: respondo só com base no seu material, sempre citando o arquivo e a página.
+              Olá, <b>{primeiroNome(usuario?.nome || '')}</b>! Esta é a <b>última etapa sugerida</b> da trilha.
+              Li <b>{fontesCount}</b> fonte(s) e já preparei resumo, mapa e quiz. Pergunte o que ficou confuso:
+              respondo só com base no seu material, sempre citando arquivo e página.
             </div>
             <div className="chat-lista">
               {mensagens.map((m, i) => (
@@ -260,7 +333,7 @@ export function CadernoPage() {
                 value={pergunta}
                 onChange={(e) => setPergunta(e.target.value)}
                 disabled={restantes <= 0 || perguntando}
-                placeholder="Pergunte sobre um conceito do material (resumo, mapa e quiz ficam no Estúdio)"
+                placeholder="Pergunte sobre um conceito do material"
               />
               <button className="btn primary" disabled={restantes <= 0 || perguntando || !pergunta.trim()}>
                 {perguntando ? '…' : '↑'}
@@ -283,6 +356,9 @@ export function CadernoPage() {
             {resumo.termos.map((t) => (
               <div className="termo" key={t.termo}><b>{t.termo}</b><span>{t.definicao}</span></div>
             ))}
+            <button className="btn primary" type="button" style={{ marginTop: '1rem', width: 'auto' }} onClick={proximaEtapa}>
+              Próxima etapa: Mapa mental →
+            </button>
           </>
         )}
 
@@ -331,6 +407,9 @@ export function CadernoPage() {
                 </div>
               )}
             </details>
+            <button className="btn primary" type="button" style={{ marginTop: '1rem', width: 'auto' }} onClick={proximaEtapa}>
+              Próxima etapa: Quiz →
+            </button>
           </>
         )}
 
@@ -380,20 +459,26 @@ export function CadernoPage() {
                 <button className="btn" type="button" onClick={() => { setCorrigido(null); setRespostas({}) }}>Refazer quiz</button>
               </div>
             )}
+            <button className="btn primary" type="button" style={{ marginTop: '1rem', width: 'auto' }} onClick={proximaEtapa}>
+              Próxima etapa: Dúvidas →
+            </button>
           </>
         )}
       </div>
 
       <div className="painel">
         <div className="painel-titulo"><span className="ponto" />Estúdio</div>
+        <p className="sub" style={{ fontSize: '0.8rem', margin: '0 0 0.7rem' }}>
+          Trilha gerada no envio · navegue na ordem que preferir
+        </p>
         {VISOES.map((v) => (
           <button
             key={v.key}
             className={`btn estudio ${view === v.key ? 'active' : ''}`}
             style={{ marginBottom: '0.45rem' }}
-            onClick={() => setView(v.key)}
+            onClick={() => irPara(v.key)}
           >
-            {v.label}
+            {visitados.has(v.key) ? '✓ ' : ''}{v.label}
           </button>
         ))}
         <div className="rotulo-secao">Seu progresso</div>

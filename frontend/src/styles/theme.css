@@ -225,11 +225,41 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .cartao-acoes { display: flex; gap: 0.5rem; margin-top: 0.85rem; }
 .cartao-acoes .btn { width: auto; flex: 1; }
 .uploader {
-  background: var(--painel2); border: 1.5px dashed #2b3750; border-radius: 20px; padding: 1.6rem;
-  text-align: center; color: var(--suave); cursor: pointer; margin-bottom: 0.85rem;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--painel2);
+  border: 1.5px dashed var(--borda2);
+  border-radius: 20px;
+  padding: 1.6rem;
+  text-align: center;
+  color: var(--suave);
+  cursor: pointer;
+  margin: 0 0 1rem 0;
+  position: relative;
+  z-index: 0;
 }
 .uploader:hover { border-color: var(--ciano); background: #1a2234; }
 .uploader input { display: none; }
+.criar-painel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  text-align: left;
+  width: 100%;
+  margin-top: 1.2rem;
+}
+.criar-painel .sub {
+  text-align: left !important;
+  margin: 0 0 0.25rem 0 !important;
+  line-height: 1.45;
+}
+.criar-painel form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
 
 .caderno-layout { display: grid; grid-template-columns: 2.2fr 1fr; gap: 1rem; }
 .chat-lista { display: flex; flex-direction: column; gap: 0.75rem; margin: 1rem 0; }
@@ -302,8 +332,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .prompt-acoes { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
 .prompt-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .prompt-box .btn.enviar { width: auto; border-radius: 999px; min-width: 2.6rem; padding: 0.55rem 0.9rem; }
-.criar-painel { width: 100%; margin-top: 1.2rem; }
-
 /* ---------- sidebar estilo ChatGPT ---------- */
 .nav-item {
   display: flex; align-items: center; gap: 0.35rem; width: 100%;
@@ -366,3 +394,53 @@ button, input, textarea, select { font: inherit; color: inherit; }
 [data-theme="light"] .tabs button.active { color: var(--texto); }
 [data-theme="light"] .prompt-box { box-shadow: 0 12px 40px rgba(15,23,42,.08); }
 [data-theme="light"] ::-webkit-scrollbar-thumb { background: #c5cedc; }
+
+/* ---------- stepper da trilha ---------- */
+.trilha-stepper {
+  margin: 1rem 0 0.5rem;
+  padding: 0.85rem 1rem;
+  border-radius: 16px;
+  border: 1px solid var(--borda);
+  background: var(--painel2);
+}
+.trilha-passos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: stretch;
+}
+.trilha-passo {
+  flex: 1;
+  min-width: 6.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 12px;
+  border: 1px solid var(--borda);
+  background: var(--painel);
+  color: var(--suave);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+.trilha-passo:hover { border-color: var(--ciano); color: var(--texto); }
+.trilha-passo.visitado { color: var(--texto); }
+.trilha-passo.ativo {
+  border-color: rgba(34, 211, 238, 0.55);
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.14), rgba(99, 102, 241, 0.14));
+  color: var(--texto);
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.2);
+}
+.trilha-num {
+  width: 1.5rem; height: 1.5rem; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; font-weight: 700; flex: none;
+  background: var(--borda2); color: var(--texto);
+}
+.trilha-passo.ativo .trilha-num,
+.trilha-passo.visitado .trilha-num {
+  background: var(--grad); color: #04111a;
+}
+.trilha-label { font-size: 0.85rem; font-weight: 500; }

@@ -38,6 +38,7 @@ export function Home() {
       nav(`/cadernos/${caderno.id}`, {
         state: {
           reaproveitado: caderno.do_cache,
+          trilhaPronta: true,
           perguntaInicial: prompt.trim() || undefined,
         },
       })
@@ -72,7 +73,10 @@ export function Home() {
       <h1 className="saudacao">
         {saudacaoDoDia()}, <span className="grad">{nome}</span>
       </h1>
-      <p className="sub">Estudo guiado a partir do material da sua aula.</p>
+      <p className="sub">
+        Estudo guiado a partir do material da sua aula. Ao enviar o PDF ou PPTX, a Trilha gera
+        resumo, mapa mental e quiz de uma vez.
+      </p>
 
       <form className="prompt-box" onSubmit={enviarPrompt}>
         <textarea
@@ -107,9 +111,10 @@ export function Home() {
       {modoCriar && (
         <div className="painel criar-painel">
           <div className="painel-titulo"><span className="ponto" />Novo caderno</div>
-          <p className="sub" style={{ marginTop: 0, marginBottom: '0.9rem', fontSize: '0.9rem' }}>
+          <p className="sub" style={{ fontSize: '0.9rem' }}>
             PDF ou PPTX com texto selecionável · até {cfg?.limites.max_paginas_por_jornada ?? 40} páginas/slides
-            e {cfg?.limites.max_tamanho_arquivo_mb ?? 20} MB por arquivo.
+            e {cfg?.limites.max_tamanho_arquivo_mb ?? 20} MB por arquivo. No envio, a Trilha prepara
+            resumo, mapa mental e quiz de uma vez e abre na primeira etapa sugerida.
           </p>
           {aviso && <div className="ok">{aviso}</div>}
           <form onSubmit={criar}>
@@ -124,9 +129,10 @@ export function Home() {
                 ? Array.from(files).map((f) => f.name).join(', ')
                 : 'Clique para enviar PDF ou PPTX'}
             </label>
-            <div className="field">
-              <label>Nome do caderno (opcional)</label>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="nome-caderno">Nome do caderno (opcional)</label>
               <input
+                id="nome-caderno"
                 value={titulo}
                 onChange={(e) => setTitulo(e.target.value)}
                 maxLength={80}
@@ -134,11 +140,11 @@ export function Home() {
               />
             </div>
             {erro && <div className="erro">{erro}</div>}
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="btn primary" type="submit" disabled={!files?.length || loading}>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button className="btn primary" type="submit" disabled={!files?.length || loading} style={{ width: 'auto' }}>
                 {loading ? 'Preparando sua jornada…' : 'Criar caderno'}
               </button>
-              <button className="btn" type="button" onClick={() => { setModoCriar(false); setAviso('') }}>
+              <button className="btn" type="button" style={{ width: 'auto' }} onClick={() => { setModoCriar(false); setAviso('') }}>
                 Cancelar
               </button>
             </div>
