@@ -1,9 +1,10 @@
-# Front Trilha Atitus — Root Directory = frontend OU builder Dockerfile neste arquivo.
+# Front Trilha Atitus — build a partir da raiz do monorepo
+# (Dockerfile Path no Railway: frontend/Dockerfile)
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
-COPY . .
+COPY frontend/ .
 # Passe no build: --build-arg VITE_API_URL=https://sua-api.up.railway.app
 ARG VITE_API_URL=
 ENV VITE_API_URL=$VITE_API_URL
