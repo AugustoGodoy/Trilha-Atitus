@@ -23,6 +23,7 @@ class RenomearCadernoIn(BaseModel):
 
 class PerguntaIn(BaseModel):
     pergunta: str
+    usar_gemini: bool = True
 
 
 class CorrecaoQuizIn(BaseModel):

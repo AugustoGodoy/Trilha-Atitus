@@ -109,10 +109,18 @@ class Servico:
         self.cache.salvar(h, {"conteudo": conteudo, "trechos": [t.__dict__ for t in trechos]})
         return Jornada(h, conteudo, trechos, indice, False, "offline")
 
-    def perguntar(self, j: Jornada, pergunta: str) -> dict:
-        """Único ponto que pode chamar o Gemini."""
+    def perguntar(self, j: Jornada, pergunta: str, *, usar_gemini: bool = True) -> dict:
+        """Único ponto que pode chamar o Gemini (se usar_gemini e houver chave)."""
         c = self.cfg["chunking"]
-        r = geracao.responder(pergunta, j.indice, self.llm, c["trechos_recuperados"], c["score_minimo"])
+        llm = self.llm if usar_gemini else None
+        r = geracao.responder(
+            pergunta,
+            j.indice,
+            llm,
+            c["trechos_recuperados"],
+            c["score_minimo"],
+            forcar_contexto=bool(usar_gemini and self.llm),
+        )
         self._uso(j.hash, "chat", r["tokens_in"], r["tokens_out"])
         return r
 

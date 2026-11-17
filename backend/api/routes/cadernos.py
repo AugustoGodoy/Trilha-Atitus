@@ -186,7 +186,7 @@ def perguntar(caderno_id: int, body: PerguntaIn, usuario: dict = Depends(usuario
     pergunta = body.pergunta.strip()
     if not pergunta:
         raise ApiError(400, "INVALID_INPUT", "Informe uma pergunta.")
-    r = svc.perguntar(jornada, pergunta)
+    r = svc.perguntar(jornada, pergunta, usar_gemini=body.usar_gemini)
     consumiu = not r["sem_base"] or svc.cfg["limites"]["recusa_consome_pergunta"]
     banco.salvar_mensagem(caderno_id, pergunta, r, consumiu)
     restantes = max(0, total - banco.perguntas_consumidas(caderno_id))
@@ -198,6 +198,7 @@ def perguntar(caderno_id: int, body: PerguntaIn, usuario: dict = Depends(usuario
         "restantes": restantes,
         "provedor": r.get("provedor", "desconhecido"),
         "modelo": r.get("modelo") or None,
+        "usar_gemini": body.usar_gemini,
     })
 
 

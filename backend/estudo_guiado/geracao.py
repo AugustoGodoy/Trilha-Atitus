@@ -297,11 +297,19 @@ def corrigir_quiz(quiz: dict, respostas: dict[int, str]) -> dict:
 
 # ---------------------------------------------------------------- chat
 
-def responder(pergunta: str, indice: IndiceBM25, llm: ClienteLLM | None, k: int, score_min: float) -> dict:
+def responder(
+    pergunta: str,
+    indice: IndiceBM25,
+    llm: ClienteLLM | None,
+    k: int,
+    score_min: float,
+    *,
+    forcar_contexto: bool = False,
+) -> dict:
     """Retorna {resposta, fontes, sem_base, tokens_in, tokens_out, provedor}.
 
-    Gemini só é chamado se o BM25 achar algum trecho. Sem match lexical → provedor=nenhum
-    (não gasta a API com 'oi' / assuntos fora do PDF).
+    Sem match BM25: se forcar_contexto e houver LLM, usa os primeiros trechos do índice
+    e chama o Gemini (ele mesmo pode devolver sem_base). Caso contrário → provedor=nenhum.
     """
     achados = indice.buscar(pergunta, k)
     base = {
@@ -312,24 +320,24 @@ def responder(pergunta: str, indice: IndiceBM25, llm: ClienteLLM | None, k: int,
         "tokens_out": 0,
         "provedor": "nenhum",
     }
-    # Sem nenhum token em comum com o material → não chama Gemini
-    if not achados:
-        base["resposta"] = (
-            f"{MSG_FORA_DO_MATERIAL}\n\n"
-            "(Gemini não foi chamado: nenhum trecho do material combina com essa pergunta. "
-            "Use um termo que aparece no resumo/slides.)"
-        )
-        return base
 
-    # score_min só filtra matches fracos demais; se houver score>0 acima do mínimo, segue
-    if achados[0][1] < score_min:
-        base["resposta"] = (
-            f"{MSG_FORA_DO_MATERIAL}\n\n"
-            f"(Gemini não foi chamado: relevância baixa no material, score={achados[0][1]:.2f} < {score_min}.)"
-        )
-        return base
-
-    trechos = [t for t, _ in achados]
+    if not achados or achados[0][1] < score_min:
+        if forcar_contexto and llm is not None and indice.trechos:
+            # Gemini ligado: manda contexto genérico do material para a API decidir
+            trechos = indice.trechos[: max(k, 3)]
+        else:
+            motivo = (
+                "nenhum trecho do material combina com essa pergunta"
+                if not achados
+                else f"relevância baixa no material (score={achados[0][1]:.2f} < {score_min})"
+            )
+            base["resposta"] = (
+                f"{MSG_FORA_DO_MATERIAL}\n\n"
+                f"(Gemini não foi chamado: {motivo}. Ligue o Gemini ou use um termo do resumo/slides.)"
+            )
+            return base
+    else:
+        trechos = [t for t, _ in achados]
     fontes_recuperadas = [t.fonte() for t in trechos[:3]]
     if llm is None:
         return _resposta_offline(pergunta, trechos) | {"tokens_in": 0, "tokens_out": 0, "provedor": "offline"}

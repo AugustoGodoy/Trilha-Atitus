@@ -62,6 +62,7 @@ export function CadernoPage() {
   const [pergunta, setPergunta] = useState('')
   const [perguntando, setPerguntando] = useState(false)
   const [prontoChat, setProntoChat] = useState(false)
+  const [geminiLigado, setGeminiLigado] = useState(true)
 
   const [resumo, setResumo] = useState<{ topicos: { titulo: string; texto_destacado: string; fonte: { arquivo: string; pagina: number } }[]; termos: { termo: string; definicao: string }[] } | null>(null)
   const [mapa, setMapa] = useState<Mapa | null>(null)
@@ -85,7 +86,10 @@ export function CadernoPage() {
   const restantes = caderno?.restantes ?? 0
 
   useEffect(() => {
-    api.get<Configuracao>('/v1/configuracao').then(setCfg).catch(() => null)
+    api.get<Configuracao>('/v1/configuracao').then((c) => {
+      setCfg(c)
+      setGeminiLigado(Boolean(c.usar_api))
+    }).catch(() => null)
   }, [])
 
   useEffect(() => {
@@ -196,7 +200,10 @@ export function CadernoPage() {
     setPerguntando(true)
     setErro('')
     try {
-      const r = await api.post<Mensagem & { restantes: number }>(`/v1/cadernos/${cadernoId}/mensagens`, { pergunta: q })
+      const r = await api.post<Mensagem & { restantes: number }>(`/v1/cadernos/${cadernoId}/mensagens`, {
+        pergunta: q,
+        usar_gemini: geminiLigado,
+      })
       setMensagens((m) => [...m, {
         pergunta: r.pergunta,
         resposta: r.resposta,
@@ -318,6 +325,23 @@ export function CadernoPage() {
             </div>
           )}
           {restantes <= 0 && <div className="ok">Você usou todas as perguntas deste caderno. Bons estudos!</div>}
+          <div className="gemini-toggle-wrap">
+            <button
+              type="button"
+              className={`gemini-toggle ${geminiLigado ? 'on' : 'off'}`}
+              disabled={!cfg?.usar_api}
+              onClick={() => setGeminiLigado((v) => !v)}
+              title={cfg?.usar_api ? 'Ligar/desligar Gemini nesta pergunta' : 'Gemini indisponível (sem chave no servidor)'}
+            >
+              <span className="gemini-toggle-knob" />
+              <span className="gemini-toggle-label">
+                Gemini {geminiLigado && cfg?.usar_api ? 'ligado' : 'desligado'}
+              </span>
+            </button>
+            {!cfg?.usar_api && (
+              <span className="sub" style={{ fontSize: '0.75rem' }}>Chave não configurada na API</span>
+            )}
+          </div>
           <form className="chat-form" onSubmit={(e) => { e.preventDefault(); enviarPergunta(pergunta) }}>
             <input
               value={pergunta}
