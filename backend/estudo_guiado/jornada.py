@@ -5,7 +5,7 @@ from . import extracao, geracao
 from .cache import Cache, hash_arquivos
 from .chunking import Trecho, dividir
 from .config import carregar_config
-from .llm import ClienteLLM
+from .llm import ClienteLLM, ErroLLM
 from .retrieval import IndiceBM25
 
 
@@ -92,16 +92,33 @@ class Servico:
             for i, img in enumerate(p.imagens):
                 imagens.setdefault(f"{p.arquivo}|{p.numero}", []).append(self.cache.salvar_imagem(h, p.arquivo, p.numero, i, img))
 
-        resumo, tin, tout = geracao.gerar_resumo(trechos, indice, self.llm)
-        self._uso(h, "resumo", tin, tout)
-        mapa, tin, tout = geracao.gerar_mapa(trechos, resumo, indice, self.llm)
-        self._uso(h, "mapa", tin, tout)
-        quiz, tin, tout = geracao.gerar_quiz(trechos, resumo, indice, self.llm, self.cfg["limites"]["perguntas_quiz"])
-        self._uso(h, "quiz", tin, tout)
+        llm = self.llm
+        modo_efetivo = self.modo
+        try:
+            resumo, tin, tout = geracao.gerar_resumo(trechos, indice, llm)
+            self._uso(h, "resumo", tin, tout)
+            mapa, tin, tout = geracao.gerar_mapa(trechos, resumo, indice, llm)
+            self._uso(h, "mapa", tin, tout)
+            quiz, tin, tout = geracao.gerar_quiz(
+                trechos, resumo, indice, llm, self.cfg["limites"]["perguntas_quiz"]
+            )
+            self._uso(h, "quiz", tin, tout)
+        except ErroLLM:
+            # Chave inválida, quota ou falha do provedor → gera offline em vez de 500
+            llm = None
+            modo_efetivo = "offline"
+            resumo, tin, tout = geracao.gerar_resumo(trechos, indice, None)
+            self._uso(h, "resumo", tin, tout)
+            mapa, tin, tout = geracao.gerar_mapa(trechos, resumo, indice, None)
+            self._uso(h, "mapa", tin, tout)
+            quiz, tin, tout = geracao.gerar_quiz(
+                trechos, resumo, indice, None, self.cfg["limites"]["perguntas_quiz"]
+            )
+            self._uso(h, "quiz", tin, tout)
 
         conteudo = {"resumo": resumo, "mapa": mapa, "quiz": quiz, "imagens": imagens}
         self.cache.salvar(h, {"conteudo": conteudo, "trechos": [t.__dict__ for t in trechos]})
-        return Jornada(h, conteudo, trechos, indice, False, self.modo)
+        return Jornada(h, conteudo, trechos, indice, False, modo_efetivo)
 
     def perguntar(self, j: Jornada, pergunta: str) -> dict:
         c = self.cfg["chunking"]

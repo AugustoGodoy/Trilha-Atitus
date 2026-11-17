@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from estudo_guiado.banco import ErroAutenticacao
 from estudo_guiado.jornada import LimiteExcedido
+from estudo_guiado.llm import ErroLLM
 
 
 class ApiError(Exception):
@@ -48,6 +49,10 @@ def registrar_handlers(app: FastAPI) -> None:
     @app.exception_handler(LimiteExcedido)
     async def _limite(request: Request, exc: LimiteExcedido):
         return JSONResponse(status_code=400, content=_payload("LIMITE_EXCEDIDO", str(exc)))
+
+    @app.exception_handler(ErroLLM)
+    async def _llm(request: Request, exc: ErroLLM):
+        return JSONResponse(status_code=502, content=_payload("LLM_ERROR", str(exc)))
 
     @app.exception_handler(Exception)
     async def _gen(request: Request, exc: Exception):

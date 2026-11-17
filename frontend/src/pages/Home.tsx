@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 import { api, ApiError, type Caderno, type Configuracao } from '../api/client'
 import type { OutletCtx } from '../components/Layout'
@@ -10,6 +10,7 @@ export function Home() {
   const { cadernos, recarregarCadernos, setFontesSidebar, modoCriar, setModoCriar } =
     useOutletContext<OutletCtx>()
   const nav = useNavigate()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [cfg, setCfg] = useState<Configuracao | null>(null)
   const [prompt, setPrompt] = useState('')
   const [aviso, setAviso] = useState('')
@@ -17,6 +18,18 @@ export function Home() {
   const [titulo, setTitulo] = useState('')
   const [erro, setErro] = useState('')
   const [loading, setLoading] = useState(false)
+
+  function abrirSeletorArquivos() {
+    setModoCriar(true)
+    setAviso('')
+    setErro('')
+    fileInputRef.current?.click()
+  }
+
+  function onArquivosEscolhidos(lista: FileList | null) {
+    setFiles(lista)
+    if (lista?.length) setModoCriar(true)
+  }
 
   useEffect(() => {
     setFontesSidebar(undefined)
@@ -69,6 +82,14 @@ export function Home() {
 
   return (
     <div className="home-centro">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        multiple
+        style={{ display: 'none' }}
+        onChange={(e) => onArquivosEscolhidos(e.target.files)}
+      />
       <div className="hero-icone"><img src="/atitus_icone.png" alt="" /></div>
       <h1 className="saudacao">
         {saudacaoDoDia()}, <span className="grad">{nome}</span>
@@ -93,7 +114,7 @@ export function Home() {
         />
         <div className="prompt-acoes">
           <div className="prompt-chips">
-            <button className="btn pill" type="button" onClick={() => { setModoCriar(true); setAviso('') }}>
+            <button className="btn pill" type="button" onClick={abrirSeletorArquivos}>
               + Enviar material
             </button>
             {cadernos[0] && (
@@ -118,17 +139,11 @@ export function Home() {
           </p>
           {aviso && <div className="ok">{aviso}</div>}
           <form onSubmit={criar}>
-            <label className="uploader">
-              <input
-                type="file"
-                accept=".pdf,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                multiple
-                onChange={(e) => setFiles(e.target.files)}
-              />
+            <button className="uploader" type="button" onClick={() => fileInputRef.current?.click()}>
               {files?.length
                 ? Array.from(files).map((f) => f.name).join(', ')
                 : 'Clique para enviar PDF ou PPTX'}
-            </label>
+            </button>
             <div className="field" style={{ marginBottom: 0 }}>
               <label htmlFor="nome-caderno">Nome do caderno (opcional)</label>
               <input

@@ -238,6 +238,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
   margin: 0 0 1rem 0;
   position: relative;
   z-index: 0;
+  font: inherit;
 }
 .uploader:hover { border-color: var(--ciano); background: #1a2234; }
 .uploader input { display: none; }
