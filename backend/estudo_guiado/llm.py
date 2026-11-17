@@ -49,6 +49,9 @@ class ClienteLLM:
         try:
             with urllib.request.urlopen(req, timeout=120) as r:
                 dados = json.load(r)
+        except urllib.error.HTTPError as e:
+            corpo_erro = e.read().decode("utf-8", errors="replace")[:500]
+            raise ErroLLM(f"Falha ao chamar o modelo (HTTP {e.code}): {corpo_erro}") from e
         except (urllib.error.URLError, TimeoutError) as e:
             raise ErroLLM(f"Falha ao chamar o modelo: {e}") from e
         texto = dados["choices"][0]["message"]["content"]

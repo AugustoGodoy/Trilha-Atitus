@@ -40,6 +40,7 @@ def pptx(textos=TEXTO) -> bytes:
 
 @pytest.fixture
 def svc(tmp_path, monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     cfg = carregar_config()
     cfg["cache"]["caminho"] = str(tmp_path / "c.sqlite")

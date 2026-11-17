@@ -8,7 +8,7 @@ O erro **Railpack failed to prepare the build** acontece quando o serviço apont
 2. **Root Directory:** `backend`
 3. Variáveis (opcional):
    - `CORS_ORIGINS` = URL do front (ex.: `https://trilha-web-production.up.railway.app`)
-   - `OPENAI_API_KEY` = chave, se quiser modo LLM (sem isso fica offline)
+   - `GEMINI_API_KEY` = chave do Google AI Studio (Gemini); sem isso a API fica em modo offline
 4. **Volume** (importante para SQLite): monte em `/app/data` ou o path absoluto que o `config.toml` resolve (`backend/data`).
 5. Start já definido: `uvicorn api.main:app --host 0.0.0.0 --port $PORT`
 6. Healthcheck: `/health`

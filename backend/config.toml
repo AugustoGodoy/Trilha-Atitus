@@ -16,14 +16,15 @@ score_minimo = 1.0                # abaixo disso o assunto é considerado fora d
 
 [llm]
 # provider: "auto" usa a API se a chave existir, senão o modo offline (extrativo, sem custo)
+# Gemini via endpoint OpenAI-compatible (chave só no servidor / Railway)
 provider = "auto"                 # auto | openai | offline
-base_url = "https://api.openai.com/v1"
-modelo = "gpt-4o-mini"
-chave_env = "OPENAI_API_KEY"      # nome da variável de ambiente; a chave nunca vai para o usuário final
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+modelo = "gemini-2.0-flash"
+chave_env = "GEMINI_API_KEY"      # nome da variável de ambiente; a chave nunca vai para o usuário final
 temperatura = 0.2
-# preços em USD por 1M de tokens e câmbio para estimar R$
-preco_entrada_por_milhao = 0.15
-preco_saida_por_milhao = 0.60
+# preços estimados em USD por 1M de tokens (Flash) e câmbio para estimar R$
+preco_entrada_por_milhao = 0.10
+preco_saida_por_milhao = 0.40
 cambio_brl = 5.5
 
 [cache]
