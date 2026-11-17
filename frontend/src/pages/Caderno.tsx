@@ -42,7 +42,13 @@ export function CadernoPage() {
     Boolean(estadoNav?.trilhaPronta) || (Boolean(estadoNav?.reaproveitado) && !estadoNav?.perguntaInicial),
   )
   const [perguntaPendente, setPerguntaPendente] = useState(estadoNav?.perguntaInicial?.trim() || '')
-  const [visitados, setVisitados] = useState<Set<View>>(() => new Set(iniciaNoChat ? ['chat'] : ['resumo']))
+  /** Etapas já concluídas — só libera a próxima depois de concluir a atual. */
+  const [concluidos, setConcluidos] = useState<Set<View>>(() =>
+    iniciaNoChat ? new Set<View>(['resumo', 'mapa', 'quiz']) : new Set(),
+  )
+  const [modoFoco, setModoFoco] = useState(
+    Boolean(estadoNav?.trilhaPronta) || (Boolean(estadoNav?.reaproveitado) && !iniciaNoChat),
+  )
 
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [sugestoes, setSugestoes] = useState<string[]>([])
@@ -82,7 +88,8 @@ export function CadernoPage() {
     const st = location.state as { perguntaInicial?: string; trilhaPronta?: boolean; reaproveitado?: boolean } | null
     const comPergunta = Boolean(st?.perguntaInicial)
     setView(comPergunta ? 'chat' : 'resumo')
-    setVisitados(new Set(comPergunta ? ['chat'] : ['resumo']))
+    setConcluidos(comPergunta ? new Set<View>(['resumo', 'mapa', 'quiz']) : new Set())
+    setModoFoco(Boolean(st?.trilhaPronta) || (Boolean(st?.reaproveitado) && !comPergunta))
     setBannerTrilha(Boolean(st?.trilhaPronta) || (Boolean(st?.reaproveitado) && !comPergunta))
     setReaproveitado(Boolean(st?.reaproveitado))
     setProntoChat(false)
@@ -94,32 +101,40 @@ export function CadernoPage() {
       .then((m) => {
         setMensagens(m)
         setProntoChat(true)
-        if (m.length > 0) setVisitados((v) => new Set(v).add('chat'))
       })
       .catch(() => { setMensagens([]); setProntoChat(true) })
     api.get<{ quiz: typeof quiz; resultados: { nota: number }[] }>(`/v1/cadernos/${cadernoId}/quiz`)
       .then((d) => {
         setResultados(d.resultados)
-        if (d.resultados.length > 0) setVisitados((v) => new Set(v).add('quiz'))
       })
       .catch(() => null)
     api.get<{ itens: { etapa: string; custo_brl: number }[]; total_brl: number }>(`/v1/cadernos/${cadernoId}/custos`)
       .then(setCustos).catch(() => setCustos(null))
   }, [cadernoId, setFontesSidebar, location.state])
 
+  function etapaLiberada(etapa: View): boolean {
+    const idx = ORDEM_TRILHA.indexOf(etapa)
+    if (idx <= 0) return true
+    // Libera se todas as anteriores foram concluídas
+    return ORDEM_TRILHA.slice(0, idx).every((e) => concluidos.has(e))
+  }
+
   function irPara(proxima: View) {
+    if (!etapaLiberada(proxima) && !concluidos.has(proxima)) return
     setView(proxima)
-    setVisitados((v) => new Set(v).add(proxima))
   }
 
-  function proximaEtapa() {
+  function concluirEtapaAtual() {
     const i = ORDEM_TRILHA.indexOf(view)
-    if (i >= 0 && i < ORDEM_TRILHA.length - 1) irPara(ORDEM_TRILHA[i + 1])
+    setConcluidos((c) => new Set(c).add(view))
+    if (i >= 0 && i < ORDEM_TRILHA.length - 1) {
+      const prox = ORDEM_TRILHA[i + 1]
+      setView(prox)
+      return
+    }
+    // Última etapa (dúvidas): sai do modo foco
+    setModoFoco(false)
   }
-
-  useEffect(() => {
-    setVisitados((v) => new Set(v).add(view))
-  }, [view])
 
   useEffect(() => {
     if (!cadernoId || view !== 'chat' || mensagens.length > 0 || restantes <= 0) {
@@ -177,7 +192,6 @@ export function CadernoPage() {
       const r = await api.post<Mensagem & { restantes: number }>(`/v1/cadernos/${cadernoId}/mensagens`, { pergunta: q })
       setMensagens((m) => [...m, { pergunta: r.pergunta, resposta: r.resposta, fontes: r.fontes, sem_base: r.sem_base }])
       setCaderno((c) => c ? { ...c, restantes: r.restantes } : c)
-      setVisitados((v) => new Set(v).add('chat'))
       setPergunta('')
       setSugestoes([])
     } catch (e) {
@@ -240,7 +254,6 @@ export function CadernoPage() {
     const r = await api.post<NonNullable<typeof corrigido>>(`/v1/cadernos/${cadernoId}/quiz/correcoes`, { respostas })
     setCorrigido(r)
     setResultados((prev) => [{ nota: r.nota }, ...prev])
-    setVisitados((v) => new Set(v).add('quiz'))
   }
 
   if (erro && !caderno) return <div className="erro">{erro}</div>
@@ -248,6 +261,193 @@ export function CadernoPage() {
 
   const fontesCount = caderno.fontes?.length ?? 0
   const pags = caderno.total_paginas ?? 0
+  const idxAtual = ORDEM_TRILHA.indexOf(view)
+  const rotuloProxima = idxAtual >= 0 && idxAtual < ORDEM_TRILHA.length - 1
+    ? VISOES[idxAtual + 1].label
+    : null
+
+  const conteudoEtapa = (
+    <>
+      {view === 'chat' && (
+        <>
+          <div className="guia" style={{ marginTop: '1rem' }}>
+            Olá, <b>{primeiroNome(usuario?.nome || '')}</b>! Esta é a <b>última etapa</b> da trilha.
+            Li <b>{fontesCount}</b> fonte(s) e já preparei resumo, mapa e quiz. Pergunte o que ficou confuso:
+            respondo só com base no seu material, sempre citando arquivo e página.
+          </div>
+          <div className="chat-lista">
+            {mensagens.map((m, i) => (
+              <div key={i}>
+                <div className="msg-user">{m.pergunta}</div>
+                <div className="msg-bot">
+                  <div>{m.resposta}</div>
+                  <div>{m.fontes?.map((f, j) => <Citacao key={j} fonte={f} />)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {sugestoes.length > 0 && (
+            <div>
+              <p className="sub" style={{ fontSize: '0.85rem' }}>Sugestões para começar</p>
+              {sugestoes.map((s) => (
+                <button key={s} className="btn pill" type="button" onClick={() => enviarPergunta(s)}>{s}</button>
+              ))}
+            </div>
+          )}
+          {restantes <= 0 && <div className="ok">Você usou todas as perguntas deste caderno. Bons estudos!</div>}
+          <form className="chat-form" onSubmit={(e) => { e.preventDefault(); enviarPergunta(pergunta) }}>
+            <input
+              value={pergunta}
+              onChange={(e) => setPergunta(e.target.value)}
+              disabled={restantes <= 0 || perguntando}
+              placeholder="Pergunte sobre um conceito do material"
+            />
+            <button className="btn primary" disabled={restantes <= 0 || perguntando || !pergunta.trim()}>
+              {perguntando ? '…' : '↑'}
+            </button>
+          </form>
+          {!concluidos.has('chat') && (
+            <button className="btn" type="button" style={{ marginTop: '1rem', width: 'auto' }} onClick={concluirEtapaAtual}>
+              Encerrar trilha
+            </button>
+          )}
+        </>
+      )}
+
+      {view === 'resumo' && resumo && (
+        <>
+          <div className="painel-titulo" style={{ marginTop: '1rem' }}><span className="ponto" />Resumo por tópicos</div>
+          {resumo.topicos.map((tp, i) => (
+            <div className="topico" key={i}>
+              <div className="t">{tp.titulo}</div>
+              <div dangerouslySetInnerHTML={{ __html: negritoHtml(tp.texto_destacado) }} />
+              <div style={{ marginTop: '0.5rem' }}><Citacao fonte={tp.fonte} /></div>
+            </div>
+          ))}
+          <div className="painel-titulo"><span className="ponto" />Termos-chave para memorizar</div>
+          {resumo.termos.map((t) => (
+            <div className="termo" key={t.termo}><b>{t.termo}</b><span>{t.definicao}</span></div>
+          ))}
+          <button className="btn primary" type="button" style={{ marginTop: '1rem', width: 'auto' }} onClick={concluirEtapaAtual}>
+            Concluí a leitura · Ir para {rotuloProxima} →
+          </button>
+        </>
+      )}
+      {view === 'resumo' && !resumo && <p className="sub" style={{ marginTop: '1rem' }}>Carregando resumo…</p>}
+
+      {view === 'mapa' && mapa && (
+        <>
+          <div className="painel-titulo" style={{ marginTop: '1rem' }}><span className="ponto" />Mapa mental</div>
+          <div className="mapa-svg" dangerouslySetInnerHTML={{ __html: svg }} />
+          {mapa.nos.length > 0 && (
+            <div className="field">
+              <label>Ver o trecho de um nó</label>
+              <select value={noSel} onChange={(e) => setNoSel(e.target.value)}>
+                {mapa.nos.map((n) => <option key={n.id} value={n.id}>{n.rotulo}</option>)}
+              </select>
+            </div>
+          )}
+          {noSel && porId[noSel] && <Citacao fonte={porId[noSel].fonte} />}
+          {trecho && <pre style={{ whiteSpace: 'pre-wrap', color: 'var(--suave)', fontSize: '0.88rem' }}>{trecho.texto}</pre>}
+          {trecho?.imagens?.map((src) => (
+            <img key={src} src={apiUrl(src)} alt="" style={{ maxWidth: 260, borderRadius: 12, marginRight: 8 }} />
+          ))}
+          <details className="expander">
+            <summary>Editar mapa (adicionar/remover nós)</summary>
+            <div className="field" style={{ marginTop: '0.8rem' }}>
+              <label>Novo nó</label>
+              <input value={novoNo} onChange={(e) => setNovoNo(e.target.value)} />
+            </div>
+            <div className="field">
+              <label>Ligar a</label>
+              <select value={paiNo} onChange={(e) => setPaiNo(e.target.value)}>
+                <option value="">—</option>
+                {mapa.nos.map((n) => <option key={n.id} value={n.id}>{n.rotulo}</option>)}
+              </select>
+            </div>
+            <button className="btn primary" type="button" onClick={adicionarNo}>Adicionar</button>
+            {mapa.nos.length > 0 && (
+              <div className="field" style={{ marginTop: '0.8rem' }}>
+                <label>Remover nó</label>
+                <select id="rem" defaultValue={mapa.nos[0].id}>
+                  {mapa.nos.map((n) => <option key={n.id} value={n.id}>{n.rotulo}</option>)}
+                </select>
+                <button className="btn" type="button" style={{ marginTop: '0.5rem' }}
+                  onClick={() => {
+                    const el = document.getElementById('rem') as HTMLSelectElement
+                    removerNo(el.value)
+                  }}>Remover</button>
+              </div>
+            )}
+          </details>
+          <button className="btn primary" type="button" style={{ marginTop: '1rem', width: 'auto' }} onClick={concluirEtapaAtual}>
+            Concluí o mapa · Ir para {rotuloProxima} →
+          </button>
+        </>
+      )}
+      {view === 'mapa' && !mapa && <p className="sub" style={{ marginTop: '1rem' }}>Carregando mapa…</p>}
+
+      {view === 'quiz' && quiz && (
+        <>
+          <div className="painel-titulo" style={{ marginTop: '1rem' }}><span className="ponto" />Quiz</div>
+          {!quiz.questoes.length ? (
+            <div className="erro">Não foi possível gerar questões com este material (conteúdo insuficiente).</div>
+          ) : (
+            <form onSubmit={corrigirQuiz}>
+              {quiz.questoes.map((q, i) => (
+                <div className="questao" key={i}>
+                  <div><b>{i + 1}.</b> {q.enunciado} <span className="nivel">{q.nivel}</span></div>
+                  <div className="alts">
+                    {(['A', 'B', 'C', 'D'] as const).map((L, idx) => (
+                      <label key={L}>
+                        <input
+                          type="radio"
+                          name={`q${i}`}
+                          value={L}
+                          disabled={!!corrigido}
+                          checked={respostas[i] === L}
+                          onChange={() => setRespostas((r) => ({ ...r, [i]: L }))}
+                        />
+                        <span>{L}) {q.alternativas[idx]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <button className="btn primary" type="submit" disabled={!!corrigido}>Corrigir</button>
+            </form>
+          )}
+          {corrigido && (
+            <div style={{ marginTop: '1rem' }}>
+              <div className="stat" style={{ marginBottom: '0.8rem' }}>
+                <div className="n">{corrigido.nota}/10</div>
+                <div className="l">{corrigido.acertos} de {corrigido.total} acertos</div>
+              </div>
+              {corrigido.itens.filter((it) => !it.acertou).map((it) => (
+                <div className="topico" key={it.indice}>
+                  <div><b>Questão {it.indice + 1}</b>: você marcou {it.marcada || '—'}; gabarito {it.gabarito}.</div>
+                  <p>{it.justificativa}</p>
+                  <Citacao fonte={it.fonte} />
+                </div>
+              ))}
+              <button className="btn" type="button" onClick={() => { setCorrigido(null); setRespostas({}) }}>Refazer quiz</button>
+            </div>
+          )}
+          {(corrigido || !quiz.questoes.length) && (
+            <button className="btn primary" type="button" style={{ marginTop: '1rem', width: 'auto' }} onClick={concluirEtapaAtual}>
+              Concluí o quiz · Ir para {rotuloProxima} →
+            </button>
+          )}
+          {!corrigido && quiz.questoes.length > 0 && (
+            <p className="sub" style={{ marginTop: '0.8rem', fontSize: '0.85rem' }}>
+              Corrija o quiz para liberar a próxima etapa.
+            </p>
+          )}
+        </>
+      )}
+      {view === 'quiz' && !quiz && <p className="sub" style={{ marginTop: '1rem' }}>Carregando quiz…</p>}
+    </>
+  )
 
   return (
     <div className="caderno-layout">
@@ -261,14 +461,14 @@ export function CadernoPage() {
           </div>
           <button className="btn" style={{ width: 'auto', height: 'fit-content' }} onClick={renomear}>✎</button>
         </div>
-        {bannerTrilha && (
+        {bannerTrilha && !modoFoco && (
           <div className="ok" style={{ marginTop: '1rem' }}>
             <div>
               Sua trilha já está pronta: preparei <b>resumo</b>, <b>mapa mental</b> e <b>quiz</b> com base no seu material.
-              Siga a ordem sugerida (Resumo → Mapa → Quiz → Dúvidas) ou escolha outra etapa no Estúdio.
+              Conclua cada etapa na ordem (Resumo → Mapa → Quiz → Dúvidas).
             </div>
             <button className="btn" type="button" style={{ width: 'auto', marginTop: '0.6rem' }}
-              onClick={() => setBannerTrilha(false)}>Entendi</button>
+              onClick={() => { setBannerTrilha(false); setModoFoco(true) }}>Começar trilha</button>
           </div>
         )}
         {reaproveitado && (
@@ -279,189 +479,34 @@ export function CadernoPage() {
           </div>
         )}
 
-        <div className="trilha-stepper" aria-label="Sua trilha de estudo">
-          <div className="rotulo-secao" style={{ marginTop: 0 }}>Sua trilha</div>
-          <div className="trilha-passos">
-            {VISOES.map((v, i) => (
-              <button
-                key={v.key}
-                type="button"
-                className={`trilha-passo ${view === v.key ? 'ativo' : ''} ${visitados.has(v.key) ? 'visitado' : ''}`}
-                onClick={() => irPara(v.key)}
-              >
-                <span className="trilha-num">{visitados.has(v.key) && view !== v.key ? '✓' : i + 1}</span>
-                <span className="trilha-label">{v.label}</span>
-              </button>
-            ))}
-          </div>
-          <p className="sub" style={{ fontSize: '0.8rem', margin: '0.35rem 0 0' }}>
-            Ordem sugerida · você pode pular etapas
-          </p>
-        </div>
-
-        {erro && <div className="erro">{erro}</div>}
-
-        {view === 'chat' && (
+        {!modoFoco && (
           <>
-            <div className="guia" style={{ marginTop: '1rem' }}>
-              Olá, <b>{primeiroNome(usuario?.nome || '')}</b>! Esta é a <b>última etapa sugerida</b> da trilha.
-              Li <b>{fontesCount}</b> fonte(s) e já preparei resumo, mapa e quiz. Pergunte o que ficou confuso:
-              respondo só com base no seu material, sempre citando arquivo e página.
+            <div className="trilha-stepper" aria-label="Sua trilha de estudo">
+              <div className="rotulo-secao" style={{ marginTop: 0 }}>Sua trilha</div>
+              <div className="trilha-passos">
+                {VISOES.map((v, i) => {
+                  const liberada = etapaLiberada(v.key) || concluidos.has(v.key)
+                  return (
+                    <button
+                      key={v.key}
+                      type="button"
+                      disabled={!liberada}
+                      className={`trilha-passo ${view === v.key ? 'ativo' : ''} ${concluidos.has(v.key) ? 'visitado' : ''} ${!liberada ? 'bloqueado' : ''}`}
+                      onClick={() => irPara(v.key)}
+                    >
+                      <span className="trilha-num">{concluidos.has(v.key) ? '✓' : i + 1}</span>
+                      <span className="trilha-label">{v.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="sub" style={{ fontSize: '0.8rem', margin: '0.35rem 0 0' }}>
+                Conclua uma etapa para liberar a próxima
+              </p>
             </div>
-            <div className="chat-lista">
-              {mensagens.map((m, i) => (
-                <div key={i}>
-                  <div className="msg-user">{m.pergunta}</div>
-                  <div className="msg-bot">
-                    <div>{m.resposta}</div>
-                    <div>{m.fontes?.map((f, j) => <Citacao key={j} fonte={f} />)}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {sugestoes.length > 0 && (
-              <div>
-                <p className="sub" style={{ fontSize: '0.85rem' }}>Sugestões para começar</p>
-                {sugestoes.map((s) => (
-                  <button key={s} className="btn pill" type="button" onClick={() => enviarPergunta(s)}>{s}</button>
-                ))}
-              </div>
-            )}
-            {restantes <= 0 && <div className="ok">Você usou todas as perguntas deste caderno. Bons estudos!</div>}
-            <form className="chat-form" onSubmit={(e) => { e.preventDefault(); enviarPergunta(pergunta) }}>
-              <input
-                value={pergunta}
-                onChange={(e) => setPergunta(e.target.value)}
-                disabled={restantes <= 0 || perguntando}
-                placeholder="Pergunte sobre um conceito do material"
-              />
-              <button className="btn primary" disabled={restantes <= 0 || perguntando || !pergunta.trim()}>
-                {perguntando ? '…' : '↑'}
-              </button>
-            </form>
-          </>
-        )}
 
-        {view === 'resumo' && resumo && (
-          <>
-            <div className="painel-titulo" style={{ marginTop: '1rem' }}><span className="ponto" />Resumo por tópicos</div>
-            {resumo.topicos.map((tp, i) => (
-              <div className="topico" key={i}>
-                <div className="t">{tp.titulo}</div>
-                <div dangerouslySetInnerHTML={{ __html: negritoHtml(tp.texto_destacado) }} />
-                <div style={{ marginTop: '0.5rem' }}><Citacao fonte={tp.fonte} /></div>
-              </div>
-            ))}
-            <div className="painel-titulo"><span className="ponto" />Termos-chave para memorizar</div>
-            {resumo.termos.map((t) => (
-              <div className="termo" key={t.termo}><b>{t.termo}</b><span>{t.definicao}</span></div>
-            ))}
-            <button className="btn primary" type="button" style={{ marginTop: '1rem', width: 'auto' }} onClick={proximaEtapa}>
-              Próxima etapa: Mapa mental →
-            </button>
-          </>
-        )}
-
-        {view === 'mapa' && mapa && (
-          <>
-            <div className="painel-titulo" style={{ marginTop: '1rem' }}><span className="ponto" />Mapa mental</div>
-            <div className="mapa-svg" dangerouslySetInnerHTML={{ __html: svg }} />
-            {mapa.nos.length > 0 && (
-              <div className="field">
-                <label>Ver o trecho de um nó</label>
-                <select value={noSel} onChange={(e) => setNoSel(e.target.value)}>
-                  {mapa.nos.map((n) => <option key={n.id} value={n.id}>{n.rotulo}</option>)}
-                </select>
-              </div>
-            )}
-            {noSel && porId[noSel] && <Citacao fonte={porId[noSel].fonte} />}
-            {trecho && <pre style={{ whiteSpace: 'pre-wrap', color: 'var(--suave)', fontSize: '0.88rem' }}>{trecho.texto}</pre>}
-            {trecho?.imagens?.map((src) => (
-              <img key={src} src={apiUrl(src)} alt="" style={{ maxWidth: 260, borderRadius: 12, marginRight: 8 }} />
-            ))}
-            <details className="expander">
-              <summary>Editar mapa (adicionar/remover nós)</summary>
-              <div className="field" style={{ marginTop: '0.8rem' }}>
-                <label>Novo nó</label>
-                <input value={novoNo} onChange={(e) => setNovoNo(e.target.value)} />
-              </div>
-              <div className="field">
-                <label>Ligar a</label>
-                <select value={paiNo} onChange={(e) => setPaiNo(e.target.value)}>
-                  <option value="">—</option>
-                  {mapa.nos.map((n) => <option key={n.id} value={n.id}>{n.rotulo}</option>)}
-                </select>
-              </div>
-              <button className="btn primary" type="button" onClick={adicionarNo}>Adicionar</button>
-              {mapa.nos.length > 0 && (
-                <div className="field" style={{ marginTop: '0.8rem' }}>
-                  <label>Remover nó</label>
-                  <select id="rem" defaultValue={mapa.nos[0].id}>
-                    {mapa.nos.map((n) => <option key={n.id} value={n.id}>{n.rotulo}</option>)}
-                  </select>
-                  <button className="btn" type="button" style={{ marginTop: '0.5rem' }}
-                    onClick={() => {
-                      const el = document.getElementById('rem') as HTMLSelectElement
-                      removerNo(el.value)
-                    }}>Remover</button>
-                </div>
-              )}
-            </details>
-            <button className="btn primary" type="button" style={{ marginTop: '1rem', width: 'auto' }} onClick={proximaEtapa}>
-              Próxima etapa: Quiz →
-            </button>
-          </>
-        )}
-
-        {view === 'quiz' && quiz && (
-          <>
-            <div className="painel-titulo" style={{ marginTop: '1rem' }}><span className="ponto" />Quiz</div>
-            {!quiz.questoes.length ? (
-              <div className="erro">Não foi possível gerar questões com este material (conteúdo insuficiente).</div>
-            ) : (
-              <form onSubmit={corrigirQuiz}>
-                {quiz.questoes.map((q, i) => (
-                  <div className="questao" key={i}>
-                    <div><b>{i + 1}.</b> {q.enunciado} <span className="nivel">{q.nivel}</span></div>
-                    <div className="alts">
-                      {(['A', 'B', 'C', 'D'] as const).map((L, idx) => (
-                        <label key={L}>
-                          <input
-                            type="radio"
-                            name={`q${i}`}
-                            value={L}
-                            disabled={!!corrigido}
-                            checked={respostas[i] === L}
-                            onChange={() => setRespostas((r) => ({ ...r, [i]: L }))}
-                          />
-                          <span>{L}) {q.alternativas[idx]}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                <button className="btn primary" type="submit" disabled={!!corrigido}>Corrigir</button>
-              </form>
-            )}
-            {corrigido && (
-              <div style={{ marginTop: '1rem' }}>
-                <div className="stat" style={{ marginBottom: '0.8rem' }}>
-                  <div className="n">{corrigido.nota}/10</div>
-                  <div className="l">{corrigido.acertos} de {corrigido.total} acertos</div>
-                </div>
-                {corrigido.itens.filter((it) => !it.acertou).map((it) => (
-                  <div className="topico" key={it.indice}>
-                    <div><b>Questão {it.indice + 1}</b>: você marcou {it.marcada || '—'}; gabarito {it.gabarito}.</div>
-                    <p>{it.justificativa}</p>
-                    <Citacao fonte={it.fonte} />
-                  </div>
-                ))}
-                <button className="btn" type="button" onClick={() => { setCorrigido(null); setRespostas({}) }}>Refazer quiz</button>
-              </div>
-            )}
-            <button className="btn primary" type="button" style={{ marginTop: '1rem', width: 'auto' }} onClick={proximaEtapa}>
-              Próxima etapa: Dúvidas →
-            </button>
+            {erro && <div className="erro">{erro}</div>}
+            {conteudoEtapa}
           </>
         )}
       </div>
@@ -469,18 +514,22 @@ export function CadernoPage() {
       <div className="painel">
         <div className="painel-titulo"><span className="ponto" />Estúdio</div>
         <p className="sub" style={{ fontSize: '0.8rem', margin: '0 0 0.7rem' }}>
-          Trilha gerada no envio · navegue na ordem que preferir
+          Trilha em ordem · etapas futuras ficam bloqueadas
         </p>
-        {VISOES.map((v) => (
-          <button
-            key={v.key}
-            className={`btn estudio ${view === v.key ? 'active' : ''}`}
-            style={{ marginBottom: '0.45rem' }}
-            onClick={() => irPara(v.key)}
-          >
-            {visitados.has(v.key) ? '✓ ' : ''}{v.label}
-          </button>
-        ))}
+        {VISOES.map((v) => {
+          const liberada = etapaLiberada(v.key) || concluidos.has(v.key)
+          return (
+            <button
+              key={v.key}
+              className={`btn estudio ${view === v.key ? 'active' : ''}`}
+              style={{ marginBottom: '0.45rem', opacity: liberada ? 1 : 0.45 }}
+              disabled={!liberada}
+              onClick={() => { irPara(v.key); if (!modoFoco) setModoFoco(true) }}
+            >
+              {concluidos.has(v.key) ? '✓ ' : !liberada ? '🔒 ' : ''}{v.label}
+            </button>
+          )
+        })}
         <div className="rotulo-secao">Seu progresso</div>
         <p className="sub" style={{ fontSize: '0.9rem', margin: 0 }}>
           Perguntas restantes: <b>{restantes} de {totalPerguntas}</b>
@@ -507,6 +556,50 @@ export function CadernoPage() {
           <p>Total: R$ {(custos?.total_brl ?? 0).toFixed(4)}</p>
         </details>
       </div>
+
+      {modoFoco && (
+        <div className="trilha-modal" role="dialog" aria-modal="true" aria-label="Trilha de estudo">
+          <div className="trilha-modal-painel">
+            <div className="trilha-modal-topo">
+              <div>
+                <div className="rotulo-secao" style={{ marginTop: 0 }}>Trilha guiada</div>
+                <h2 className="trilha-modal-titulo">{caderno.titulo}</h2>
+                <p className="sub" style={{ margin: 0, fontSize: '0.85rem' }}>
+                  Etapa {idxAtual + 1} de {ORDEM_TRILHA.length}: <b>{VISOES[idxAtual]?.label}</b>
+                </p>
+              </div>
+              <button
+                className="btn ghost"
+                type="button"
+                style={{ width: 'auto' }}
+                onClick={() => setModoFoco(false)}
+                title="Minimizar (a ordem continua bloqueada)"
+              >
+                Minimizar
+              </button>
+            </div>
+            <div className="trilha-passos" style={{ marginBottom: '0.75rem' }}>
+              {VISOES.map((v, i) => {
+                const liberada = etapaLiberada(v.key) || concluidos.has(v.key)
+                return (
+                  <button
+                    key={v.key}
+                    type="button"
+                    disabled={!liberada}
+                    className={`trilha-passo ${view === v.key ? 'ativo' : ''} ${concluidos.has(v.key) ? 'visitado' : ''} ${!liberada ? 'bloqueado' : ''}`}
+                    onClick={() => irPara(v.key)}
+                  >
+                    <span className="trilha-num">{concluidos.has(v.key) ? '✓' : i + 1}</span>
+                    <span className="trilha-label">{v.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+            {erro && <div className="erro">{erro}</div>}
+            <div className="trilha-modal-corpo">{conteudoEtapa}</div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

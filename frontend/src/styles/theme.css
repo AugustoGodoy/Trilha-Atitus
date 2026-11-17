@@ -426,13 +426,18 @@ button, input, textarea, select { font: inherit; color: inherit; }
   text-align: left;
   transition: all 0.15s ease;
 }
-.trilha-passo:hover { border-color: var(--ciano); color: var(--texto); }
+.trilha-passo:hover:not(:disabled) { border-color: var(--ciano); color: var(--texto); }
 .trilha-passo.visitado { color: var(--texto); }
 .trilha-passo.ativo {
   border-color: rgba(34, 211, 238, 0.55);
   background: linear-gradient(135deg, rgba(34, 211, 238, 0.14), rgba(99, 102, 241, 0.14));
   color: var(--texto);
   box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.2);
+}
+.trilha-passo.bloqueado,
+.trilha-passo:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 .trilha-num {
   width: 1.5rem; height: 1.5rem; border-radius: 50%;
@@ -445,3 +450,40 @@ button, input, textarea, select { font: inherit; color: inherit; }
   background: var(--grad); color: #04111a;
 }
 .trilha-label { font-size: 0.85rem; font-weight: 500; }
+
+.trilha-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(4, 8, 16, 0.72);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 1rem;
+  overflow: auto;
+}
+.trilha-modal-painel {
+  width: min(920px, 100%);
+  margin: auto;
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  background: var(--painel);
+  border: 1px solid var(--borda2);
+  border-radius: 22px;
+  padding: 1.25rem 1.4rem 1.6rem;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+}
+.trilha-modal-topo {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 0.85rem;
+}
+.trilha-modal-titulo {
+  margin: 0.15rem 0 0.25rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+.trilha-modal-corpo { padding-bottom: 0.5rem; }

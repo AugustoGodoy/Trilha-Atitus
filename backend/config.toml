@@ -19,7 +19,7 @@ score_minimo = 1.0                # abaixo disso o assunto é considerado fora d
 # Gemini via endpoint OpenAI-compatible (chave só no servidor / Railway)
 provider = "auto"                 # auto | openai | offline
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
-modelo = "gemini-2.0-flash"
+modelo = "gemini-3.8-flash"
 chave_env = "GEMINI_API_KEY"      # nome da variável de ambiente; a chave nunca vai para o usuário final
 temperatura = 0.2
 # preços estimados em USD por 1M de tokens (Flash) e câmbio para estimar R$
