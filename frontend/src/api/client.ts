@@ -64,7 +64,9 @@ type Envelope<T> = { data: T; meta?: Record<string, unknown> }
 
 export const api = {
   async get<T>(path: string): Promise<T> {
-    return (await parse<Envelope<T>>(await request(path, { headers: headers(false) }, 20_000))).data
+    // Cold start no Railway pode passar de 20s; sessão precisa de margem
+    const timeout = path.includes('/sessoes/') ? 60_000 : 30_000
+    return (await parse<Envelope<T>>(await request(path, { headers: headers(false) }, timeout))).data
   },
   async post<T>(path: string, body?: unknown): Promise<T> {
     return (await parse<Envelope<T>>(await request(path, {

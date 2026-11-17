@@ -12,7 +12,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ .
 
+# SQLite persistente: no Railway, adicione um Volume montado em /data
 ENV PYTHONUNBUFFERED=1
+ENV TRILHA_DATA_DIR=/data
+RUN mkdir -p /data
 EXPOSE 8000
 
-CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "mkdir -p \"$TRILHA_DATA_DIR\" && uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

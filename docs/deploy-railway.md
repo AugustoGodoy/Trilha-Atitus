@@ -9,8 +9,12 @@ O erro **Railpack failed to prepare the build** acontece quando o serviço apont
 3. Variáveis (opcional):
    - `CORS_ORIGINS` = URL do front (ex.: `https://trilha-web-production.up.railway.app`)
    - `GEMINI_API_KEY` = chave do Google AI Studio (Gemini); sem isso a API fica em modo offline
-4. **Volume** (importante para SQLite): monte em `/app/data` ou o path absoluto que o `config.toml` resolve (`backend/data`).
-5. Start já definido: `uvicorn api.main:app --host 0.0.0.0 --port $PORT`
+4. **Volume (obrigatório para não perder usuários):**
+   - No serviço da API → **Settings** → **Volumes** → **Add Volume**
+   - Mount path: `/data`
+   - A variável `TRILHA_DATA_DIR=/data` já vem no Dockerfile (usuários e cache SQLite ficam aí)
+   - Sem volume, **cada redeploy apaga** contas, sessões e cadernos
+5. Start já definido no Dockerfile (`uvicorn` + criação de `/data`)
 6. Healthcheck: `/health`
 
 Anote a URL pública da API (ex.: `https://trilha-api-production.up.railway.app`).

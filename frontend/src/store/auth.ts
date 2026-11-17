@@ -19,12 +19,27 @@ export const useAuth = create<AuthState>((set) => ({
       set({ usuario: null, ready: true })
       return
     }
-    try {
-      const usuario = await api.get<Usuario>('/v1/sessoes/atual')
-      set({ usuario, ready: true })
-    } catch {
-      setToken(null)
-      set({ usuario: null, ready: true })
+    const tentativas = 3
+    for (let i = 0; i < tentativas; i++) {
+      try {
+        const usuario = await api.get<Usuario>('/v1/sessoes/atual')
+        set({ usuario, ready: true })
+        return
+      } catch (e) {
+        const status = e && typeof e === 'object' && 'status' in e ? Number((e as { status: number }).status) : 0
+        // Sessão inválida → limpa token. Rede/timeout → tenta de novo (cold start Railway).
+        if (status === 401 || status === 403) {
+          setToken(null)
+          set({ usuario: null, ready: true })
+          return
+        }
+        if (i < tentativas - 1) {
+          await new Promise((r) => setTimeout(r, 1500 * (i + 1)))
+          continue
+        }
+        // Mantém o token; usuário vê login só se a API continuar fora
+        set({ usuario: null, ready: true })
+      }
     }
   },
   async login(email, senha) {
