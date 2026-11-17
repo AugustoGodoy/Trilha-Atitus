@@ -1,11 +1,15 @@
-"""Orquestra a jornada: validação de limites, cache por hash, indexação e geração única."""
+"""Orquestra a jornada: validação de limites, cache por hash, indexação e geração única.
+
+Resumo, mapa e quiz são SEMPRE gerados offline (sem LLM).
+O Gemini/LLM só entra em `perguntar` (etapa Dúvidas).
+"""
 from dataclasses import dataclass
 
 from . import extracao, geracao
 from .cache import Cache, hash_arquivos
 from .chunking import Trecho, dividir
 from .config import carregar_config
-from .llm import ClienteLLM, ErroLLM
+from .llm import ClienteLLM
 from .retrieval import IndiceBM25
 
 
@@ -32,10 +36,11 @@ class Servico:
 
     @property
     def modo(self) -> str:
-        return f"api:{self.cfg['llm']['modelo']}" if self.usar_api else "offline"
+        """Modo do chat (dúvidas). A trilha em si é sempre offline."""
+        return f"chat:{self.cfg['llm']['modelo']}" if self.usar_api else "offline"
 
     def validar(self, arquivos: list[tuple[str, bytes]], jornadas_hoje: int | None = None) -> int:
-        """Valida limites ANTES de qualquer processamento ou chamada ao LLM. Retorna total de páginas.
+        """Valida limites ANTES de qualquer processamento. Retorna total de páginas.
 
         `jornadas_hoje` é a contagem do usuário logado; sem ela, usa o contador global do cache.
         """
@@ -61,8 +66,9 @@ class Servico:
         return total
 
     def _assinatura(self) -> str:
+        # Trilha sempre offline — assinatura estável (não muda com a chave Gemini)
         c, lim = self.cfg["chunking"], self.cfg["limites"]
-        return f"v1|{self.modo}|{lim['perguntas_quiz']}|{c['tamanho_alvo_palavras']}|{c['sobreposicao_palavras']}"
+        return f"v2|trilha-offline|{lim['perguntas_quiz']}|{c['tamanho_alvo_palavras']}|{c['sobreposicao_palavras']}"
 
     def preparar(self, arquivos: list[tuple[str, bytes]], jornadas_hoje: int | None = None) -> Jornada:
         self.validar(arquivos, jornadas_hoje)
@@ -78,49 +84,33 @@ class Servico:
         if not cache:
             return None
         trechos = [Trecho(**t) for t in cache["trechos"]]
-        return Jornada(h, cache["conteudo"], trechos, IndiceBM25(trechos), True, self.modo)
+        return Jornada(h, cache["conteudo"], trechos, IndiceBM25(trechos), True, "offline")
 
     def _processar(self, h: str, arquivos: list[tuple[str, bytes]]) -> Jornada:
         ch = self.cfg["chunking"]
-        paginas = [p for nome, dados in arquivos for p in extracao.extrair(nome, dados)]
+        # Sem extrair imagens no upload: acelera muito o POST /cadernos
+        paginas = [p for nome, dados in arquivos for p in extracao.extrair(nome, dados, max_imagens_por_pagina=0)]
         trechos = dividir(paginas, ch["tamanho_alvo_palavras"], ch["sobreposicao_palavras"])
         if sum(len(t.texto.split()) for t in trechos) < 30:
             raise LimiteExcedido("Quase não há texto selecionável no material (PDF escaneado?). Esta versão não suporta esse caso.")
         indice = IndiceBM25(trechos)
-        imagens = {}
-        for p in paginas:
-            for i, img in enumerate(p.imagens):
-                imagens.setdefault(f"{p.arquivo}|{p.numero}", []).append(self.cache.salvar_imagem(h, p.arquivo, p.numero, i, img))
 
-        llm = self.llm
-        modo_efetivo = self.modo
-        try:
-            resumo, tin, tout = geracao.gerar_resumo(trechos, indice, llm)
-            self._uso(h, "resumo", tin, tout)
-            mapa, tin, tout = geracao.gerar_mapa(trechos, resumo, indice, llm)
-            self._uso(h, "mapa", tin, tout)
-            quiz, tin, tout = geracao.gerar_quiz(
-                trechos, resumo, indice, llm, self.cfg["limites"]["perguntas_quiz"]
-            )
-            self._uso(h, "quiz", tin, tout)
-        except ErroLLM:
-            # Chave inválida, quota ou falha do provedor → gera offline em vez de 500
-            llm = None
-            modo_efetivo = "offline"
-            resumo, tin, tout = geracao.gerar_resumo(trechos, indice, None)
-            self._uso(h, "resumo", tin, tout)
-            mapa, tin, tout = geracao.gerar_mapa(trechos, resumo, indice, None)
-            self._uso(h, "mapa", tin, tout)
-            quiz, tin, tout = geracao.gerar_quiz(
-                trechos, resumo, indice, None, self.cfg["limites"]["perguntas_quiz"]
-            )
-            self._uso(h, "quiz", tin, tout)
+        # Trilha 100% offline — Gemini só no chat (perguntar)
+        resumo, tin, tout = geracao.gerar_resumo(trechos, indice, None)
+        self._uso(h, "resumo", tin, tout)
+        mapa, tin, tout = geracao.gerar_mapa(trechos, resumo, indice, None)
+        self._uso(h, "mapa", tin, tout)
+        quiz, tin, tout = geracao.gerar_quiz(
+            trechos, resumo, indice, None, self.cfg["limites"]["perguntas_quiz"]
+        )
+        self._uso(h, "quiz", tin, tout)
 
-        conteudo = {"resumo": resumo, "mapa": mapa, "quiz": quiz, "imagens": imagens}
+        conteudo = {"resumo": resumo, "mapa": mapa, "quiz": quiz, "imagens": {}}
         self.cache.salvar(h, {"conteudo": conteudo, "trechos": [t.__dict__ for t in trechos]})
-        return Jornada(h, conteudo, trechos, indice, False, modo_efetivo)
+        return Jornada(h, conteudo, trechos, indice, False, "offline")
 
     def perguntar(self, j: Jornada, pergunta: str) -> dict:
+        """Único ponto que pode chamar o Gemini."""
         c = self.cfg["chunking"]
         r = geracao.responder(pergunta, j.indice, self.llm, c["trechos_recuperados"], c["score_minimo"])
         self._uso(j.hash, "chat", r["tokens_in"], r["tokens_out"])

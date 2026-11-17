@@ -45,30 +45,46 @@ function headers(json = true): HeadersInit {
   return h
 }
 
+async function request(path: string, init: RequestInit = {}, timeoutMs = 30_000): Promise<Response> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+  try {
+    return await fetch(apiUrl(path), { ...init, signal: ctrl.signal })
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new ApiError(408, 'TIMEOUT', 'A requisição demorou demais. Tente novamente.')
+    }
+    throw e
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 type Envelope<T> = { data: T; meta?: Record<string, unknown> }
 
 export const api = {
   async get<T>(path: string): Promise<T> {
-    return (await parse<Envelope<T>>(await fetch(apiUrl(path), { headers: headers(false) }))).data
+    return (await parse<Envelope<T>>(await request(path, { headers: headers(false) }, 20_000))).data
   },
   async post<T>(path: string, body?: unknown): Promise<T> {
-    return (await parse<Envelope<T>>(await fetch(apiUrl(path), {
+    return (await parse<Envelope<T>>(await request(path, {
       method: 'POST', headers: headers(), body: body === undefined ? undefined : JSON.stringify(body),
-    }))).data
+    }, 45_000))).data
   },
   async patch<T>(path: string, body: unknown): Promise<T> {
-    return (await parse<Envelope<T>>(await fetch(apiUrl(path), {
+    return (await parse<Envelope<T>>(await request(path, {
       method: 'PATCH', headers: headers(), body: JSON.stringify(body),
-    }))).data
+    }, 20_000))).data
   },
   async del(path: string): Promise<void> {
-    const res = await fetch(apiUrl(path), { method: 'DELETE', headers: headers(false) })
+    const res = await request(path, { method: 'DELETE', headers: headers(false) }, 20_000)
     if (!res.ok && res.status !== 204) await parse(res)
   },
   async postForm<T>(path: string, form: FormData): Promise<T> {
-    return (await parse<Envelope<T>>(await fetch(apiUrl(path), {
+    // Upload + geração offline da trilha (sem Gemini)
+    return (await parse<Envelope<T>>(await request(path, {
       method: 'POST', headers: headers(false), body: form,
-    }))).data
+    }, 90_000))).data
   },
 }
 

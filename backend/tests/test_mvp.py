@@ -86,6 +86,30 @@ def test_chat_recusa_fora_do_material(svc):
     assert svc.perguntar(j, "Quem ganhou a copa de 1994?")["sem_base"]
 
 
+def test_preparar_nunca_chama_llm(svc, monkeypatch):
+    """Trilha (resumo/mapa/quiz) não deve usar Gemini — só o chat."""
+    chamadas = {"n": 0}
+
+    def _boom(*_a, **_k):
+        chamadas["n"] += 1
+        raise AssertionError("LLM não deveria ser chamado na geração da trilha")
+
+    if svc.llm is not None:
+        monkeypatch.setattr(svc.llm, "json", _boom)
+    else:
+        # força um cliente fake para garantir que gerar_* recebe None
+        from estudo_guiado.llm import ClienteLLM
+        fake = ClienteLLM(svc.cfg["llm"])
+        monkeypatch.setattr(fake, "json", _boom)
+        svc.llm = fake
+        svc.usar_api = True
+
+    j = svc.preparar([("a.pdf", pdf())])
+    assert j.modo == "offline"
+    assert j.conteudo["resumo"]["topicos"]
+    assert chamadas["n"] == 0
+
+
 def test_destaque_somente_termos_existentes():
     assert geracao.destacar_termos("A clorofila absorve luz.", ["clorofila", "inexistente"]) == "A **clorofila** absorve luz."
 

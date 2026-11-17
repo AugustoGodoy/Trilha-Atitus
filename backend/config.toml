@@ -15,7 +15,7 @@ trechos_recuperados = 4           # 3 a 5 trechos por consulta
 score_minimo = 1.0                # abaixo disso o assunto é considerado fora do material
 
 [llm]
-# provider: "auto" usa a API se a chave existir, senão o modo offline (extrativo, sem custo)
+# Usado SOMENTE no chat de dúvidas. Resumo/mapa/quiz são sempre offline (sem API).
 # Gemini via endpoint OpenAI-compatible (chave só no servidor / Railway)
 provider = "auto"                 # auto | openai | offline
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai"

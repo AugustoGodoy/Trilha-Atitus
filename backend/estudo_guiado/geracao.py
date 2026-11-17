@@ -1,6 +1,7 @@
-"""Geração única de resumo, mapa mental e quiz, mais respostas do chat.
+"""Geração de resumo, mapa mental e quiz (offline) e respostas do chat (LLM opcional).
 
-Dois provedores: LLM via API (barato) ou modo offline extrativo (sem custo, para demo/testes).
+A trilha (resumo/mapa/quiz) é sempre extrativa/offline.
+O LLM (Gemini) só é usado em `responder` quando a chave estiver configurada.
 Toda saída passa por validação em código: fontes existentes, termos presentes no texto.
 """
 import random

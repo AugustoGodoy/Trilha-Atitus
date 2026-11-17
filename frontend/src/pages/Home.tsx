@@ -166,7 +166,8 @@ export function Home() {
           </form>
           {cfg && (
             <p className="aviso" style={{ textAlign: 'left' }}>
-              Modo: <b>{cfg.usar_api ? cfg.modo : 'offline'}</b>
+              Trilha: <b>offline</b>
+              {cfg.usar_api ? <> · Dúvidas: <b>{cfg.modo}</b></> : <> · Dúvidas: <b>offline</b></>}
             </p>
           )}
         </div>
