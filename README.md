@@ -33,11 +33,11 @@ Contrato REST versionado em `/v1/...`, com autenticação `Authorization: Bearer
 
 - **Login e cadastro** com e-mail e senha. Cada aluno vê apenas os próprios cadernos.
 - **Cadernos**: cada material enviado (PDF ou PPTX) vira um caderno salvo na conta, com histórico de conversa e notas de quiz.
-- **Estúdio** com quatro visões:
-  - **Dúvidas**: chat com limite de 3 perguntas por caderno; cita arquivo e página; recusa quando não há base.
-  - **Resumo**: tópicos com termos-chave destacados e fonte.
-  - **Mapa mental**: JSON + Graphviz (renderizado no browser com `@viz-js/viz`); editável na sessão.
-  - **Quiz**: 5 questões com gabarito, justificativa, fonte e correção automática.
+- **Estúdio** com quatro visões, percorridas em **ordem obrigatória** (trilha sequencial: cada etapa só libera a próxima depois de concluída; etapas futuras aparecem bloqueadas 🔒):
+  1. **Resumo**: tópicos com termos-chave destacados e fonte.
+  2. **Mapa mental**: JSON + Graphviz (renderizado no browser com `@viz-js/viz`); editável na sessão.
+  3. **Quiz**: 5 questões com gabarito, justificativa, fonte e correção automática.
+  4. **Dúvidas**: chat com limite de perguntas por caderno; cita arquivo e página; recusa quando não há base.
 - **Painel inicial** com saudação, estatísticas e envio de novo material.
 - **Custo controlado**: limites validados antes do processamento; geração única e cache por hash.
 
