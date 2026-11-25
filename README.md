@@ -25,7 +25,7 @@ Monorepo com API e front separados:
 | **Front** | React + TypeScript + Vite em `frontend/` |
 | **Persistência** | SQLite (`app.sqlite` + `cache.sqlite`) |
 | **Recuperação** | BM25 local |
-| **Geração** | Offline extrativo ou LLM via API OpenAI-compatible (`gpt-4o-mini`) |
+| **Geração** | Offline extrativo ou LLM via Google Gemini, usando o endpoint OpenAI-compatible (`gemini-3.5-flash-lite`, com fallback `gemini-3.8-flash`) |
 
 Contrato REST versionado em `/v1/...`, com autenticação `Authorization: Bearer <token>`. Documentação OpenAPI em `http://localhost:8000/docs`.
 
@@ -89,7 +89,7 @@ Modelo, URL, preços e limites ficam em [`backend/config.toml`](backend/config.t
 **Com chave de API**:
 
 ```bash
-export OPENAI_API_KEY=...     # fica só no servidor; o aluno nunca vê a chave
+export GEMINI_API_KEY=...     # chave do Google AI Studio; fica só no servidor, o aluno nunca a vê
 ```
 
 ## 5. Dados e segurança

@@ -11,7 +11,7 @@ Documento de especificação do protótipo (Grupo 4), **versão 1.2**. Esta vers
 | 1.0 | n/d | Pré-projeto do Grupo 4 e decisões das discussões posteriores. |
 | 1.1 | 16/11/2026 | Alinhamento ao protótipo: conta de usuário e login, cadernos persistentes por usuário, interface React com a marca da Universidade Atitus, navegação livre entre as etapas, stack real (BM25 e SQLite), limite de jornadas por usuário, política de dados atualizada, decisões fechadas e status por requisito. Nome do produto definido: **Trilha** (Trilha Atitus). Correções: contagem de etapas (eram 5, não 4) e erros de texto. |
 | 1.2 | 17/11/2026 | Trilha explícita na UI: geração completa no envio, abertura no Resumo, stepper e “Próxima etapa”; diferencial vs NotebookLM reforçado; critério de aceite 1b. |
-| 1.3 | 25/11/2026 | Correção após verificação em produção: a navegação **não** é livre. O protótipo implementa avanço **sequencial e bloqueado** (cada etapa só libera após a conclusão da anterior), decisão confirmada pelo grupo. Trechos da versão 1.1/1.2 que descreviam "navegação livre" foram corrigidos nas seções 1.3, 3.1, 3.2 e 15.1. |
+| 1.3 | 25/11/2026 | Correção após verificação em produção: (1) a navegação **não** é livre — o protótipo implementa avanço **sequencial e bloqueado** (cada etapa só libera após a conclusão da anterior), decisão confirmada pelo grupo; (2) o provedor de LLM é **Google Gemini** (`GEMINI_API_KEY`, `gemini-3.5-flash-lite`), não OpenAI/`gpt-4o-mini` como constava em versões anteriores. Trechos corrigidos nas seções 1.3, 3.1, 3.2, 5, 6.1, 14 e 15.1/15.2. |
 
 ## 1. Visão geral
 
@@ -125,11 +125,11 @@ Limites de segurança de conta, fixados no código (`estudo_guiado/banco.py` e `
 |---|---|---|
 | 1 | **Gerar uma vez e reaproveitar.** Resumo, termos-chave, mapa mental e quiz são gerados no processamento e guardados em cache. Reabrir um caderno não gasta tokens. | Implementado |
 | 2 | **Cache compartilhado por hash.** O hash combina o conteúdo dos arquivos com o modo de geração e os parâmetros de quiz e de divisão em trechos. O nome do arquivo não entra no hash. | Implementado |
-| 3 | **Modelo barato para quase tudo** (padrão: `gpt-4o-mini` via API compatível com OpenAI). Usar um modelo mais forte apenas se a checagem de qualidade falhar. | Parcial (não há checagem de qualidade nem modelo de reserva) |
+| 3 | **Modelo barato para quase tudo** (padrão: `gemini-3.5-flash-lite`, Google Gemini via endpoint OpenAI-compatible). Usar um modelo mais forte apenas se a checagem de qualidade falhar. | Parcial (há modelo de reserva — `gemini-3.8-flash` e descoberta automática de modelos —, mas não há checagem de qualidade) |
 | 4 | **Código no lugar de IA onde possível:** destaque de termos, correção do quiz, extração de imagens, renderização do mapa, contador de perguntas e validação das saídas do modelo. | Implementado |
 | 5 | **Prompts enxutos:** instruções fixas no início, recuperação de poucos trechos e saída em JSON compacto. | Implementado |
 | 6 | **Resumo hierárquico** para materiais longos (acima de 9.000 palavras): resume por seção, em grupos de cerca de 2.500 palavras, e depois consolida. | Implementado |
-| 7 | **Chave de API no servidor**, lida da variável de ambiente `OPENAI_API_KEY`. O usuário nunca lida com chaves. | Implementado |
+| 7 | **Chave de API no servidor**, lida da variável de ambiente `GEMINI_API_KEY`. O usuário nunca lida com chaves. | Implementado |
 | 8 | **Modo offline** (extrativo, sem custo): usado automaticamente quando não há chave de API. | Implementado |
 
 ## 6. Arquitetura
@@ -141,7 +141,7 @@ Limites de segurança de conta, fixados no código (`estudo_guiado/banco.py` e `
 | Extração de texto e imagens | Python, PyMuPDF, python-pptx | Igual ao previsto |
 | Orquestração | Código próprio (`jornada.py`) | Não usa LlamaIndex nem LangChain |
 | Recuperação | BM25 local (`retrieval.py`), atrás da interface `IndiceBM25.buscar` | Substitui embeddings multilíngues e ChromaDB; a troca é isolada nesse módulo |
-| LLM de geração | API compatível com OpenAI (cliente próprio, sem dependências extras); padrão `gpt-4o-mini` | Modelo e preços em `config.toml`; testes comparativos de modelos em português ainda não foram feitos |
+| LLM de geração | Google Gemini via endpoint OpenAI-compatible (cliente próprio, sem dependências extras); padrão `gemini-3.5-flash-lite`, com fallback `gemini-3.8-flash` | Modelo e preços em `config.toml`; testes comparativos de modelos em português ainda não foram feitos |
 | Cache de conteúdo gerado | SQLite (`data/cache.sqlite`) e imagens em disco, indexados por hash | Igual ao previsto |
 | Banco da aplicação | SQLite (`data/app.sqlite`) | Novo: usuários, sessões, cadernos, chat e resultados de quiz |
 | Interface | React (Vite + TypeScript) + API FastAPI; tema escuro próprio (CSS) e a marca da Universidade Atitus | Layout em três áreas (Fontes, conversa, Estúdio) |
@@ -399,10 +399,11 @@ Observação: o caminho com LLM real não foi exercitado (não havia chave de AP
 - [x] **Conta de usuário obrigatória**, com cadernos e histórico por usuário.
 - [x] **Navegação sequencial e bloqueada** entre Resumo, Mapa mental, Quiz e Dúvidas depois do envio: o aluno deve seguir a trilha na ordem (cada etapa libera a próxima só ao ser concluída), com **trilha explícita** (geração completa no envio, abertura no Resumo, stepper e “Próxima etapa”). *Correção v1.3: decisão do grupo é manter o avanço guiado e bloqueado — não há navegação livre.*
 - [x] **Recuperação inicial com BM25**, com troca por embeddings prevista.
+- [x] **Provedor de LLM: Google Gemini** (não OpenAI), via endpoint OpenAI-compatible, com chave em `GEMINI_API_KEY`. Modelo padrão `gemini-3.5-flash-lite`, com fallback `gemini-3.8-flash` e descoberta automática de outros modelos Gemini em caso de erro 404. *Correção v1.3: versões anteriores desta especificação citavam incorretamente `gpt-4o-mini`/`OPENAI_API_KEY`, divergindo do código (`config.toml`, `estudo_guiado/llm.py`).*
 
 ### 15.2 Decisões em aberto
 
-- [ ] Modelo(s) de API a utilizar, após teste em português (o padrão atual é `gpt-4o-mini`).
+- [ ] Teste comparativo de modelos em português (o padrão atual, `gemini-3.5-flash-lite`, não passou por comparação formal com outros modelos).
 - [ ] Política de privacidade: texto do aviso, consentimento, prazos de retenção e exclusão de conta (RF20 e RF21).
 - [ ] Hospedagem para demonstração (rodar localmente ou publicar), HTTPS e como a chave de API será protegida.
 - [ ] Definir se haverá teste de ganho de aprendizagem com colegas.
